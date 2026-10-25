@@ -117,3 +117,16 @@ def test_standings_come_from_earlier_races_only():
     r1 = df[df["round"] == 1].set_index("driver_id")["points"]
     leader = r1.idxmax()
     assert f[(f["round"] == 2) & (f["driver_id"] == leader)]["driver_standing"].iloc[0] == 1
+
+
+def test_sprint_features_use_same_weekend_sprint_and_fall_back_to_grid():
+    from f1pred.features import add_sprint_features
+    df = build_features(_season_data(seasons=(2026,), rounds=2))
+    sprints = pd.DataFrame({"season": 2026, "round": 2, "driver_id": ["lec", "ham"],
+                            "sprint_grid": [5, 1], "sprint_position": [1, 6], "sprint_status": "Finished"})
+    f = add_sprint_features(df, sprints)
+    lec = f[(f["round"] == 2) & (f["driver_id"] == "lec")].iloc[0]
+    assert lec["has_sprint"] == 1 and lec["sprint_position_pct"] == pytest.approx(1 / 2) and lec["sprint_gain"] == pytest.approx(2)
+    no_sprint = f[f["round"] == 1]
+    assert (no_sprint["has_sprint"] == 0).all() and (no_sprint["sprint_gain"] == 0).all()
+    assert (no_sprint["sprint_position_pct"] == no_sprint["grid_pct"]).all()

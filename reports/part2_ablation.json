@@ -1,0 +1,22 @@
+{
+  "kept": [
+    "grid",
+    "grid_penalty",
+    "team_form",
+    "driver_standing",
+    "constructor_standing"
+  ],
+  "removed": [
+    "grid_pct",
+    "quali_position",
+    "quali_best_gap_pct",
+    "no_quali_time",
+    "teammate_quali_delta",
+    "sprint_sets_grid",
+    "driver_level",
+    "driver_recent_form",
+    "track_level",
+    "team_dnf_rate",
+    "driver_vs_teammate"
+  ]
+}
