@@ -1,0 +1,105 @@
+@import "tailwindcss";
+
+/* Brand palette (supplied) mapped onto the true-black-flat app style:
+   elevation by lightness alone, colour only on data and on the active state. */
+@theme {
+  --color-void: #000000;          /* ground */
+  --color-night: #181818;         /* surface, one lightness step up */
+  --color-graphite: #303030;      /* raised panel, hairline rules */
+  --color-ink: #ffffff;           /* text */
+  --color-smoke: #b4b4b4;         /* secondary text, 9.7:1 on #000 */
+  --color-ash: #949494;           /* meta, 4.8:1 on #181818 */
+  --color-rosso: #da291c;         /* the one data hue + active/hover state */
+  --color-rosso-deep: #9d2211;    /* pressed state, pale data tint */
+  --color-grid: #2b2b2b;          /* chart gridlines */
+
+  --font-sans: var(--font-archivo), "Helvetica Neue", Arial, sans-serif;
+
+  --radius-pill: 9999px;
+}
+
+:root {
+  color-scheme: dark;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+}
+
+html { background: var(--color-void); }
+body {
+  background: var(--color-void);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-variation-settings: "wdth" 100;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+.num { font-variant-numeric: tabular-nums; }
+
+/* Condensed display: the race's voice. Tracking tightens as the type grows. */
+.display {
+  font-variation-settings: "wdth" 62;
+  font-weight: 800;
+  letter-spacing: -0.035em;
+  line-height: 0.86;
+  text-transform: uppercase;
+}
+.condensed { font-variation-settings: "wdth" 75; }
+
+/* Brand voice for navigation and meta only: small, uppercase, widely tracked. */
+.caps {
+  text-transform: uppercase;
+  letter-spacing: 0.083em;
+  font-size: 12px;
+}
+
+::selection { background: var(--color-rosso); color: #fff; }
+
+:focus-visible {
+  outline: 2px solid var(--color-rosso);
+  outline-offset: 3px;
+}
+
+/* ---------------------------------------------------------------- motion (race page only)
+   Content is visible without script; the reveal only adds travel when JS marks the page ready. */
+.js-motion [data-reveal] {
+  opacity: 0;
+  transform: translateY(28px);
+  transition: opacity 0.8s var(--ease-out), transform 0.8s var(--ease-out);
+  transition-delay: calc(var(--i, 0) * 80ms);
+}
+.js-motion [data-reveal].is-in { opacity: 1; transform: none; }
+
+.hero-line { display: block; overflow: hidden; }
+.hero-line > span {
+  display: block;
+  animation: rise 1.1s var(--ease-out) both;
+  animation-delay: calc(var(--i, 0) * 110ms + 120ms);
+}
+@keyframes rise { from { transform: translateY(105%); } to { transform: none; } }
+
+.marquee { display: flex; width: max-content; animation: marquee 48s linear infinite; }
+.marquee:hover { animation-play-state: paused; }
+@keyframes marquee { to { transform: translateX(-50%); } }
+
+.draw-line { stroke-dasharray: var(--len); stroke-dashoffset: var(--len); }
+.is-in .draw-line {
+  stroke-dashoffset: 0;
+  transition: stroke-dashoffset 1.4s var(--ease-in-out);
+  transition-delay: calc(var(--i, 0) * 30ms);
+}
+
+.bar-grow { transform-origin: left; transform: scaleX(0); }
+.is-in .bar-grow {
+  transform: scaleX(1);
+  transition: transform 1s var(--ease-out);
+  transition-delay: calc(var(--i, 0) * 25ms + 200ms);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .js-motion [data-reveal] { opacity: 1; transform: none; transition: none; }
+  .hero-line > span { animation: none; }
+  .marquee { animation: none; }
+  .draw-line { stroke-dashoffset: 0; }
+  .bar-grow { transform: none; }
+}
