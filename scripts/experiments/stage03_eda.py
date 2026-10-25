@@ -1,6 +1,6 @@
 """Stage 3: which signals explain what the starting grid doesn't?
 
-    python scripts/stage03_eda.py        # prints the tables, writes reports/figures/stage03_*.png
+    python scripts/experiments/stage03_eda.py        # prints the tables, writes reports/figures/stage03_*.png
 """
 import matplotlib
 

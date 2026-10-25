@@ -11,7 +11,7 @@ import pandas as pd
 
 from f1pred import config
 from f1pred.config import MANUAL_DIR, PROJECT_ROOT
-from f1pred.data import NON_STARTERS, TEAM_LINEAGE, RawData
+from f1pred.data import NON_STARTERS, TEAM_LINEAGE, RawData, load_results, race_start, read_snapshot
 from f1pred.features import append_target_race, build_features
 from f1pred.models import add_finisher_target, final_model, final_sim_model
 from f1pred.race_inputs import load_race_inputs
@@ -120,12 +120,11 @@ def prediction_table(sim: pd.DataFrame, race_name: str, as_of: pd.Timestamp, inp
     )
 
 
-def history_table(snapshot=None, season: int | None = None, rnd: int | None = None):
-    """(data, as_of, history, table) for backtests: results before `season`/`rnd` (default: the target
-    race), with every feature, the finishers-only target and the simulation's DNF probability."""
-    from f1pred.data import load_results, race_start, read_snapshot
+def history_table(season: int, rnd: int, snapshot=None):
+    """(data, as_of, history, table) for backtests: every result before race `season`/`rnd` starts,
+    with every feature, the finishers-only target and the simulation's DNF probability."""
     data = read_snapshot(snapshot or config.SNAPSHOT)
-    as_of = race_start(data.schedule, season or config.TARGET_SEASON, rnd or config.TARGET_ROUND)
+    as_of = race_start(data.schedule, season, rnd)
     history = load_results(as_of=as_of, data=data)
     table = add_dnf_probability(add_finisher_target(build_features(history.assign(is_target=False))))
     return data, as_of, history, table

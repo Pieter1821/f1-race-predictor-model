@@ -1,7 +1,7 @@
 """Part 1: is the order model under- or overfitting? Learning curves, complexity curves, Optuna optimism,
 noise floor, leak check, and a breakdown by season and situation.
 
-    python scripts/diagnose.py      # prints results, writes reports/figures/diagnose_*.png, logs to reports/experiments.csv
+    python scripts/experiments/diagnose.py      # prints results, writes reports/figures/diagnose_*.png, logs to reports/experiments.csv
 """
 import json
 

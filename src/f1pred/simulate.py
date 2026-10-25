@@ -12,6 +12,7 @@ import numpy as np
 import pandas as pd
 
 from f1pred import config
+from f1pred.features import dnf_outcome, league_prior, prior_mean
 
 POINTS_PLACES = 10
 
@@ -66,11 +67,8 @@ def simulate_positions(pace: np.ndarray, p_dnf: np.ndarray, sigma: float, n_sims
 def add_dnf_probability(table: pd.DataFrame, prior_weight: float | None = None) -> pd.DataFrame:
     """P(DNF) per car for the simulation: team rate this season, shrunk hard toward this season's
     league rate so far (itself shrunk toward the all-time rate). Earlier races only."""
-    from f1pred.features import league_prior, prior_mean
-
     t = table.copy()
-    dnf = (~t["finished"].fillna(True).astype(bool) & (t["status_bucket"] != "dsq")).astype(float)
-    t["_dnf"] = dnf.where(t["position"].notna())
+    t["_dnf"] = dnf_outcome(t)
     t["_season"] = t["season"].astype(str)
     t["_team_season"] = t["team"] + "_" + t["_season"]
     prior_weight = config.DNF_PRIOR_WEIGHT if prior_weight is None else prior_weight

@@ -4,7 +4,7 @@ Before each half-season from 2024 on, run backward elimination using only walk-f
 EARLIER races (2023 onward), then score that half-season with the selected features. 2023 uses all
 features (no earlier walk-forward races to choose on). Compared with v1 on 2023-26.
 
-    python scripts/part2_nested_features.py
+    python scripts/experiments/part2_nested_features.py
 """
 import json
 
@@ -14,7 +14,7 @@ from f1pred import config
 from f1pred.evaluate import NOISE_FLOOR, compare, line, order_scores
 from f1pred.pipeline import history_table
 
-data, as_of, history, table = history_table()
+data, as_of, history, table = history_table(config.TARGET_SEASON, config.TARGET_ROUND)  # recorded for Austin 2026
 FULL = list(config.FEATURES)
 cache: dict[tuple, pd.DataFrame] = {}
 

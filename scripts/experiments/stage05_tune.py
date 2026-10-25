@@ -1,6 +1,6 @@
 """Stage 5: tune the residual LightGBM with Optuna, scored on walk-forward 2024 (dev) races only.
 
-    python scripts/stage05_tune.py        # writes reports/stage05_lgbm_params.json
+    python scripts/experiments/stage05_tune.py        # writes reports/stage05_lgbm_params.json
 """
 import json
 

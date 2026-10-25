@@ -1,6 +1,6 @@
 """Part 5: pit-strategy estimates. Walk-forward validation on 2024-26 dry races, then Austin 2026 per driver.
 
-    python scripts/part5_strategy.py
+    python scripts/experiments/part5_strategy.py
 For each test race, only earlier races and that weekend's practice are used: compound offsets, fuel
 effect and stint caps from earlier race laps; tyre wear from this weekend's practice long runs (fuel
 corrected); pit loss from earlier races at the same circuit. Validation: does the best plan's stop

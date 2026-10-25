@@ -1,6 +1,6 @@
 """Part 2, experiments 3-6 on walk-forward 2023-26, each one change vs v1, logged to reports/experiments.csv.
 
-    python scripts/part2_experiments.py
+    python scripts/experiments/part2_experiments.py
   3. ensemble: nested ridge/lightgbm weight; adding LambdaRank
   4. sprint results as features
   5. simulation: win calibration fixed vs re-fitted on earlier races (expanding / last 12 races)
@@ -115,7 +115,7 @@ for name, sim in (("re-fitted on all earlier races", adaptive(None)), ("re-fitte
     dl = pr["log_loss"] - fixed["log_loss"]
     pole = sim[(sim["grid"] == 1) & (sim["season"] == 2026)]
     ok = hi < 0 and seasons_better >= 3 and experiments.bootstrap_ci(dl)[0] <= 0
-    decision = "ACCEPT" if ok else "reject"
+    decision = "candidate" if ok else "reject"
     experiments.log(f"win calibration {name}", SEASONS, {"win_brier_change": d.mean(), "log_loss_change": dl.mean(),
                                                         "better_seasons": seasons_better}, (lo, hi), decision)
     print(f"  {name:<34} win Brier {d.mean():+.5f} [{lo:+.5f}, {hi:+.5f}] better in {seasons_better}/4 | "

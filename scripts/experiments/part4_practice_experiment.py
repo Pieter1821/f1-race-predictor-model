@@ -1,6 +1,6 @@
 """Part 4: do OpenF1 practice long-run features improve walk-forward accuracy over v2?
 
-    python scripts/part4_practice_experiment.py
+    python scripts/experiments/part4_practice_experiment.py
 Prints the cleaning report and data coverage, then v2 vs v2 + practice features (same acceptance rules).
 """
 import pandas as pd
@@ -12,7 +12,7 @@ from f1pred.practice import PRACTICE_FEATURES, add_practice_features, clean_laps
 
 OPENF1 = sorted((config.DATA_DIR / "snapshots").glob("openf1_*"))[-1]
 pd.set_option("display.width", 160)
-_, _, history, table = history_table()
+_, _, history, table = history_table(config.TARGET_SEASON, config.TARGET_ROUND)  # recorded for Austin 2026
 
 laps = pd.read_parquet(OPENF1 / "practice_laps.parquet")
 stints = pd.read_parquet(OPENF1 / "practice_stints.parquet")

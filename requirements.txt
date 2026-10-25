@@ -13,3 +13,4 @@ streamlit
 jupyter
 ipykernel
 pytest
+requests

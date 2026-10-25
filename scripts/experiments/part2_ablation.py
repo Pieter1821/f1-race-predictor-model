@@ -1,6 +1,6 @@
 """Part 2, experiment 1: feature ablation on walk-forward 2023-26.
 
-    python scripts/part2_ablation.py     # logs every run to reports/experiments.csv
+    python scripts/experiments/part2_ablation.py     # logs every run to reports/experiments.csv
 """
 import json
 
@@ -8,7 +8,7 @@ from f1pred import config
 from f1pred.evaluate import compare, line, order_scores
 from f1pred.pipeline import history_table
 
-data, as_of, history, table = history_table()
+data, as_of, history, table = history_table(config.TARGET_SEASON, config.TARGET_ROUND)  # recorded for Austin 2026
 FULL = list(config.FEATURES)
 base = order_scores(table, FULL)
 print(f"v1 walk-forward 2023-26: MAE {base['mae'].mean():.3f} over {len(base)} races\n", flush=True)

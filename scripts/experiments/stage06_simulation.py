@@ -1,7 +1,7 @@
 """Stage 6: Monte Carlo simulation settings, chosen on 2024 dev races only.
 
-    python scripts/stage06_simulation.py dev    # choose target variant, spacing, grid blend and noise
-    python scripts/stage06_simulation.py test   # the locked choice vs the naive baseline on 2025-26
+    python scripts/experiments/stage06_simulation.py dev    # choose target variant, spacing, grid blend and noise
+    python scripts/experiments/stage06_simulation.py test   # the locked choice vs the naive baseline on 2025-26
 
 Selection rule (fixed before running): lowest brier_total (per-driver Brier: win + podium + points) on dev.
 History: v1 (dev 2024, linear spacing) lost to the naive baseline on the official test

@@ -1,6 +1,6 @@
 """Stage 7 checks on the simulation, on 2023-24 dev races only.
 
-    python scripts/stage07_sim_checks.py
+    python scripts/experiments/stage07_sim_checks.py
   1. A vs B margin compared with Monte Carlo noise (seeds) and race-sampling noise (bootstrap)
   2. Does feeding the models' actual score gaps ("score" spacing) beat rank-based log spacing?
 """
