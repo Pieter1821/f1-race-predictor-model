@@ -1,6 +1,4 @@
 """Check the environment: every library imports and FastF1 can fetch real data."""
-from pathlib import Path
-
 import fastf1
 import lightgbm
 import optuna
@@ -11,9 +9,9 @@ import streamlit
 import xgboost
 from fastf1.ergast import Ergast
 
-CACHE_DIR = Path(__file__).resolve().parents[1] / "cache"
-CACHE_DIR.mkdir(exist_ok=True)
-fastf1.Cache.configure(cache_dir=str(CACHE_DIR))
+from f1pred.config import enable_cache
+
+enable_cache()
 
 for lib in (fastf1, pd, sklearn, lightgbm, xgboost, optuna, shap, streamlit):
     print(f"{lib.__name__:<12} {lib.__version__}")
