@@ -5,6 +5,8 @@ Every model has the same two methods, so the backtest can treat them alike:
 Learned preprocessing (imputation, scaling) lives inside the model and is fitted on its
 training rows only.
 """
+import json
+
 import lightgbm as lgb
 import numpy as np
 import pandas as pd
@@ -120,7 +122,6 @@ FINAL_WEIGHTING = config.RECENCY_WEIGHTING
 
 
 def _members(target: str) -> list:
-    import json
     params = json.loads(config.LGBM_PARAMS_FILE.read_text())["params"]
     makers = {"ridge": lambda: RidgeModel(target=target),
               "lightgbm": lambda: LGBMRegressorModel(residual=True, target=target, **params)}

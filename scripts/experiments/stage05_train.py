@@ -1,7 +1,7 @@
 """Stage 5: walk-forward model comparison.
 
-    python scripts/stage05_train.py dev     # choices: feature groups, models, weights (2024 races)
-    python scripts/stage05_train.py test    # the locked choice vs references on 2025-26, run once
+    python scripts/experiments/stage05_train.py dev     # choices: feature groups, models, weights (2024 races)
+    python scripts/experiments/stage05_train.py test    # the locked choice vs references on 2025-26, run once
 """
 import sys
 import time

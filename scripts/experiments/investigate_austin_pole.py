@@ -1,6 +1,6 @@
 """Why does the 2026 Austin polesitter (Antonelli) get 48.6% to win, and is that a 2026-specific bias?
 
-    python scripts/investigate_austin_pole.py
+    python scripts/experiments/investigate_austin_pole.py
 Reads the same snapshot and inputs as the official prediction; changes nothing.
 """
 import numpy as np

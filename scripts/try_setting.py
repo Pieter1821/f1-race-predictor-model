@@ -1,6 +1,6 @@
 """Try ONE setting change on dev seasons only: before vs after vs the grid, with a bootstrap CI.
 
-    python scripts/try_setting.py SHRINK_TRACK=10
+    python scripts/try_setting.py SHRINK_TRACK=10 --season 2026 --round 19
     python scripts/try_setting.py FEATURES=-track_level          # drop a feature (+name adds one)
     python scripts/try_setting.py SIM_POLE_BONUS=0.03            # simulation settings score the simulation
 
@@ -32,6 +32,8 @@ SIM_SETTINGS = {"SIM_SPACING", "SIM_SIGMA", "SIM_GRID_BLEND", "SIM_POLE_BONUS", 
 
 parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
 parser.add_argument("change", help="NAME=VALUE (exactly one)")
+parser.add_argument("--season", type=int, required=True, help="history up to this race's start")
+parser.add_argument("--round", type=int, required=True)
 parser.add_argument("--sim", action="store_true", help="also score the simulation (automatic for SIM_* settings)")
 args = parser.parse_args()
 
@@ -46,7 +48,7 @@ else:
     new = raw if isinstance(old, str) and not isinstance(new, str) else new
 score_sim = args.sim or name in SIM_SETTINGS
 
-_, _, history, _ = history_table()  # features are rebuilt per run below: feature settings change them
+_, _, history, _ = history_table(args.season, args.round)  # features are rebuilt per run below: feature settings change them
 
 
 def evaluate() -> dict:

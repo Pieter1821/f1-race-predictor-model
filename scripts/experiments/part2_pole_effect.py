@@ -4,7 +4,7 @@ Before each half-season the bonus (pace head start for P1, or for the whole fron
 earlier races only (2023 blocks: no earlier races -> 0, i.e. v1). Judged on win Brier, winner log loss
 and polesitter predicted vs actual win rate per season, against v1 (no bonus).
 
-    python scripts/part2_pole_effect.py
+    python scripts/experiments/part2_pole_effect.py
 """
 import numpy as np
 import pandas as pd
@@ -17,7 +17,7 @@ from f1pred.pipeline import history_table
 from f1pred.simulate import SimSettings, simulate_many, temper_win
 
 BONUSES = [0.0, 0.01, 0.02, 0.03, 0.05, 0.08]
-_, _, _, table = history_table()
+_, _, _, table = history_table(config.TARGET_SEASON, config.TARGET_ROUND)  # recorded for Austin 2026
 pace = walk_forward(table, final_sim_model, config.FEATURES, SEASONS, target=config.SIM_TARGET)
 print(f"pace scores for {race_key(pace).nunique()} races; simulating {len(BONUSES)} bonus sizes x 2 modes", flush=True)
 
@@ -60,7 +60,7 @@ for mode, grid_max in (("pole only", 1), ("front row", 2)):
     dl = nested["log_loss"] - v1["log_loss"]
     llo, lhi = experiments.bootstrap_ci(dl)
     ok = hi < 0 and better >= 3 and llo <= 0
-    decision = "ACCEPT" if ok else "reject"
+    decision = "candidate" if ok else "reject"
     experiments.log(f"structural start bonus ({mode}), nested", SEASONS,
                     {"win_brier_change": d.mean(), "log_loss_change": dl.mean(), "better_seasons": better},
                     (lo, hi), decision, notes="bonus per half-season: " + str(picked))

@@ -1,10 +1,12 @@
 """Data errors (fail loudly) and real-but-unusual cases (report and flag, never drop).
 
-    python scripts/check_outliers.py            # from the committed snapshot
+    python scripts/check_outliers.py --season 2026 --round 18      # from the committed snapshot
 """
+import argparse
+
 import pandas as pd
 
-from f1pred.config import SNAPSHOT, TARGET_ROUND, TARGET_SEASON
+from f1pred.config import SNAPSHOT
 from f1pred.data import load_raw, load_results, race_start, restrict_to_as_of
 from f1pred.race_inputs import RaceInputError, load_race_inputs
 from f1pred.validate import score_many
@@ -19,6 +21,12 @@ errors: list[str] = []
 def header(title: str) -> None:
     print(f"\n{'=' * 8} {title}")
 
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--season", type=int, required=True, help="check everything before this race's start")
+parser.add_argument("--round", type=int, required=True)
+args = parser.parse_args()
+TARGET_SEASON, TARGET_ROUND = args.season, args.round
 
 data = load_raw(from_snapshot=SNAPSHOT)
 as_of = race_start(data.schedule, TARGET_SEASON, TARGET_ROUND)

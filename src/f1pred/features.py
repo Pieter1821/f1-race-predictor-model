@@ -19,6 +19,17 @@ OUTCOME_COLUMNS = ["position", "on_track_position", "position_pct", "status", "s
 
 # ---------------------------------------------------------------- leak-free building blocks
 
+def dnf_outcome(df: pd.DataFrame) -> pd.Series:
+    """The one DNF rule: 1.0 if the car started and was not classified as a finisher (a disqualification
+    is not a retirement), 0.0 if it finished, NaN while the outcome is unknown (the target race)."""
+    unknown = df["finished"].isna()
+    if "position" in df:
+        unknown |= df["position"].isna()
+    finished = df["finished"].map(lambda v: True if pd.isna(v) else bool(v))  # no implicit dtype downcast
+    dnf = ~finished.astype(bool) & (df["status_bucket"] != "dsq")
+    return dnf.astype(float).where(~unknown)
+
+
 def race_order(df: pd.DataFrame) -> pd.Series:
     """0, 1, 2, ... in calendar order: one number per race."""
     return df.groupby(["season", "round"]).ngroup()
@@ -147,8 +158,7 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
     df = _quali_features(df)
 
     df["on_track_pct"] = df["on_track_position"] / df["field_size"]
-    df["dnf"] = np.where(df["finished"].isna(), np.nan,
-                         (~df["finished"].astype(bool) & (df["status_bucket"] != "dsq")).astype(float))
+    df["dnf"] = dnf_outcome(df)
 
     team_all = prior_mean(df, "team", "on_track_pct", prior_weight=config.SHRINK_TEAM_ALL)
     df["_team_season"] = df["team"] + "_" + df["season"].astype(str)
@@ -194,7 +204,7 @@ def append_target_race(history: pd.DataFrame, inputs: pd.DataFrame, circuit_id: 
 def add_dnf_rate(df: pd.DataFrame) -> pd.DataFrame:
     """Team and driver DNF rates from earlier races (used by the Stage 3 EDA)."""
     df = df.copy()
-    df["dnf"] = (~df["finished"] & (df["status_bucket"] != "dsq")).astype(float)
+    df["dnf"] = dnf_outcome(df)
     df["team_dnf_rate"] = prior_mean(df, "team", "dnf", prior_weight=10)
     df["driver_dnf_rate"] = prior_mean(df, "driver_id", "dnf", prior_weight=10)
     return df

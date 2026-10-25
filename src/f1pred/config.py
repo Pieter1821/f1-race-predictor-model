@@ -14,7 +14,8 @@ CACHE_DIR = Path.home() / ".cache" / "f1-race-predictor-model"
 
 FIRST_SEASON = 2022  # start of the ground-effect era; history before this is a different kind of car
 SEASONS = range(FIRST_SEASON, 2027)  # ground-effect era (2022-25) + the 2026 regulations
-TARGET_SEASON, TARGET_ROUND = 2026, 18  # United States GP, Austin
+TARGET_SEASON, TARGET_ROUND = 2026, 18  # only for the recorded experiments in scripts/experiments/ (Austin 2026);
+                                        # every pipeline script takes --season/--round instead
 
 JOLPICA_URL = "https://api.jolpi.ca/ergast/f1"
 

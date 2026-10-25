@@ -1,8 +1,8 @@
 """Stage 1: how good is 'finishing position = grid position'?
 
-    python scripts/stage01_baseline.py                      # from the committed snapshot
-    python scripts/stage01_baseline.py --api                # fresh from the API
-    python scripts/stage01_baseline.py --api --snapshot     # fresh, and save a new snapshot
+    python scripts/experiments/stage01_baseline.py                      # from the committed snapshot
+    python scripts/experiments/stage01_baseline.py --api                # fresh from the API
+    python scripts/experiments/stage01_baseline.py --api --snapshot     # fresh, and save a new snapshot
 """
 import argparse
 

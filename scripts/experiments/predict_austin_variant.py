@@ -1,6 +1,6 @@
 """VARIANT prediction for 2026 Austin (not official): recent-weighted history + win calibration incl. 2025-26.
 
-    python scripts/predict_austin_variant.py
+    python scripts/experiments/predict_austin_variant.py
 See src/f1pred/variant.py for why, and why it can't be validated cleanly.
 """
 import json

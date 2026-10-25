@@ -1,6 +1,6 @@
 """Stage 4: build the feature table for every past race plus the target race.
 
-    python scripts/stage04_features.py      # writes data/processed/features.parquet
+    python scripts/experiments/stage04_features.py      # writes data/processed/features.parquet
 """
 import numpy as np
 import pandas as pd

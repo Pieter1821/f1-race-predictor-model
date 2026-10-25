@@ -1,6 +1,6 @@
 """Stage 7: where is the model right, where is it wrong, and are its probabilities calibrated?
 
-    python scripts/stage07_evaluate.py
+    python scripts/experiments/stage07_evaluate.py
 Order model: the clean 2025-26 walk-forward test predictions from Stage 5.
 Simulation v3: 2025-26 (designed after the v1 test, so contaminated, but not tuned there).
 """
