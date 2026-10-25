@@ -8,8 +8,8 @@ import argparse
 
 import pandas as pd
 
-from f1pred.config import PROCESSED_DIR, SNAPSHOT
-from f1pred.data import load_results
+from f1pred.config import PROCESSED_DIR, SNAPSHOT, TARGET_ROUND, TARGET_SEASON
+from f1pred.data import load_raw, load_results, race_start
 from f1pred.validate import score_many
 
 parser = argparse.ArgumentParser()
@@ -19,7 +19,9 @@ args = parser.parse_args()
 
 pd.set_option("display.width", 140)
 
-results = load_results(from_snapshot=None if args.api else SNAPSHOT, save_new_snapshot=args.snapshot)
+data = load_raw(from_snapshot=None if args.api else SNAPSHOT, save_new_snapshot=args.snapshot)
+# Everything before the target race's lights out, and nothing after
+results = load_results(as_of=race_start(data.schedule, TARGET_SEASON, TARGET_ROUND), data=data)
 PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
 results.to_parquet(PROCESSED_DIR / "results.parquet", index=False)
 print(f"source: {results.attrs['source']} | as of: {results.attrs['as_of']}")
