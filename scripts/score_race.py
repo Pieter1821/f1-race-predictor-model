@@ -2,6 +2,7 @@
 
     python scripts/score_race.py --season 2026 --round 18              # latest live prediction, result from Jolpica
     python scripts/score_race.py --season 2025 --round 19 --backtest   # latest backtest, result from the snapshot
+    python scripts/score_race.py --season 2026 --round 18 --file predictions/2026_R18_variant_....csv  # a variant
 """
 import argparse
 from datetime import datetime, timezone
@@ -24,7 +25,8 @@ parser.add_argument("--file", type=Path, help="a specific prediction CSV (defaul
 args = parser.parse_args()
 
 folder = PREDICTIONS_DIR / "backtests" if args.backtest else PREDICTIONS_DIR
-files = sorted(folder.glob(f"{args.season}_R{args.round}_*.csv"))
+# Default = the latest OFFICIAL prediction; labelled variants are only scored when passed with --file
+files = sorted(f for f in folder.glob(f"{args.season}_R{args.round}_*.csv") if "variant" not in f.name)
 path = args.file or (files[-1] if files else None)
 if path is None:
     raise SystemExit(f"No saved prediction for {args.season} R{args.round} in {folder}")
@@ -54,7 +56,8 @@ brier = float(np.mean([((df[c] - (df["position"] <= k)) ** 2).mean()
                        for c, k in (("p_win", 1), ("p_podium", 3), ("p_points", 10))]) * 3)
 row = {
     "season": args.season, "round": args.round, "race_name": pred["race_name"].iloc[0],
-    "prediction_file": path.name, "made_before_lights_out": pre_race, "backtest": args.backtest,
+    "prediction_file": path.name, "official": "variant" not in path.name,
+    "made_before_lights_out": pre_race, "backtest": args.backtest,
     "scored_at_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
     **{f"model_{k}": round(v, 4) for k, v in model.items()},
     **{f"grid_{k}": round(v, 4) for k, v in grid.items()},
