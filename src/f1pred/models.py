@@ -127,3 +127,23 @@ def final_model(params_path=None, target: str = TARGET) -> Ensemble:
     params = json.loads(path.read_text())["params"]
     return Ensemble([RidgeModel(target=target), LGBMRegressorModel(residual=True, target=target, **params)],
                     name="ridge + tuned lightgbm")
+
+
+class MeanScore(Ensemble):
+    """Average of members' raw predictions. Unlike Ensemble (which averages ranks), this keeps the
+    gaps: a clear favourite stands apart, a three-way fight stays close. Used by the simulation."""
+
+    def predict(self, rows, features):
+        return np.mean([m.predict(rows, features) for m in self.members], axis=0)
+
+
+def final_sim_model(params_path=None, target: str = FINISHER_TARGET) -> MeanScore:
+    """Pace model for the simulation (v3, chosen on 2023-24): finishers-only target, so DNF risk
+    enters only through the simulation's DNF draws."""
+    import json
+
+    from f1pred.config import PROJECT_ROOT
+    path = params_path or PROJECT_ROOT / "reports" / "stage05_lgbm_params.json"
+    params = json.loads(path.read_text())["params"]
+    return MeanScore([RidgeModel(target=target), LGBMRegressorModel(residual=True, target=target, **params)],
+                     name="ridge + tuned lightgbm (mean score)")

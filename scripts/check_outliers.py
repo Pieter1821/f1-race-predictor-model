@@ -95,7 +95,7 @@ scores = score_many(results, pred_col="grid").merge(
         race=("race_name", "first"),
         dnfs=("finished", lambda s: int((~s).sum())),
         pit_lane=("pit_lane_start", "sum"),
-        winner_grid=("grid", lambda g: int(g.iloc[0])),  # rows are in finishing order
+        winner_grid=("grid", lambda g: int(g[results.loc[g.index, "position"] == 1].iloc[0])),
     ).reset_index(),
     on=["season", "round"],
 )

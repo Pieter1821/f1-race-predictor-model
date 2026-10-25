@@ -77,3 +77,14 @@ def test_log_spacing_makes_pole_more_dominant():
     lin = race_probabilities(_race(p_dnf=0.0), SimSettings(sigma=0.1, n_sims=5000))
     log = race_probabilities(_race(p_dnf=0.0), SimSettings(sigma=0.1, n_sims=5000, spacing="log"))
     assert log["p_win"].iloc[0] > lin["p_win"].iloc[0]
+
+
+def test_temper_win_sharpens_favourites_and_keeps_totals():
+    from f1pred.simulate import temper_win
+    sim = race_probabilities(_race(), SimSettings(n_sims=4000))
+    t = temper_win(sim, 1.75)
+    assert t["p_win"].sum() == pytest.approx(1.0)
+    assert t["p_win"].iloc[0] > sim["p_win"].iloc[0]          # favourite gains
+    assert t["p_win"].iloc[5] < sim["p_win"].iloc[5]          # long shot loses
+    assert (t["p_win"] <= t["p_podium"] + 1e-9).all()
+    pd.testing.assert_series_equal(temper_win(sim, 1.0)["p_win"], sim["p_win"], check_names=False)

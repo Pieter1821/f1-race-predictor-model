@@ -68,3 +68,9 @@ def test_weather_snapshot_vintages(data, as_of):
     assert old["forecast_rain_mm"].isna().all() and not old["forecast_has_rain_fields"].any()
     assert old["forecast_temp_c"].notna().all()
     assert np.isfinite(usable.loc[usable["season"] >= 2024, "forecast_rain_mm"]).all()
+
+
+def test_rows_are_not_stored_in_finishing_order(results):
+    # The cause of two leaks: rows in finishing order let any row-order tie-break see the result
+    for _, race in results.groupby(["season", "round"]):
+        assert list(race["driver_id"]) == sorted(race["driver_id"])

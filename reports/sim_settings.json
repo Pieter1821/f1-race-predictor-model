@@ -1,0 +1,25 @@
+{
+  "version": "3.1",
+  "chosen_on": [
+    2023,
+    2024
+  ],
+  "rule": "lowest brier_total on dev; ties within noise -> the design without the known flaw",
+  "pace_model": "final_sim_model: mean of ridge + tuned residual lightgbm raw scores",
+  "target": "finisher_pct",
+  "spacing": "score",
+  "grid_blend": 0.0,
+  "sigma": 0.12,
+  "dnf_probability": "add_dnf_probability, prior weight 80 toward the season rate",
+  "dev_brier_total": 0.2295,
+  "dev_vs_v2_per_race": "-0.0082, 95% CI [-0.0167, +0.0002], better in 29/46 races",
+  "known_tradeoff": "winner log loss worse than v2 on dev (1.278 vs ~1.22): more often confidently wrong on winners",
+  "history": {
+    "v1": "dev 2024, linear ranks: LOST the official 2025-26 test to the naive grid-slot baseline (stage06_test_v1.json)",
+    "v2": "official-position score, log-spaced ranks, sigma 0.16: designed after the v1 test",
+    "A_vs_B": "A - B = -0.0001 per race, CI [-0.0095, +0.0093]: within noise, so B (no DNF double count)"
+  },
+  "test_status": "no clean test left on 2025-26; Austin 2026 is the first clean test of v3",
+  "win_temperature": 1.75,
+  "win_temperature_note": "fitted on 2023-24 dev (win Brier lowest at 1.75-2.0, milder chosen): raw p_win under-rated favourites (0.50 -> 0.68 actual) and over-rated long shots (0.11 -> 0.06). 2025-26 second look: win log loss 1.321 -> 1.206, win Brier 0.0303 -> 0.0275. Applied to p_win only."
+}

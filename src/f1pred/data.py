@@ -290,7 +290,9 @@ def clean_results(raw: pd.DataFrame, dsq_last_laps: pd.DataFrame) -> pd.DataFram
     for (season, rnd), race in df.groupby(["season", "round"]):
         _assert_positions_complete(race["position"], f"{season} R{rnd}")
         _assert_positions_complete(race["on_track_position"], f"{season} R{rnd} on-track")
-    return df.sort_values(["season", "round", "position"]).reset_index(drop=True)
+    # Neutral row order (never finishing order): a forgotten row-order tie-break anywhere downstream
+    # then has nothing to leak
+    return df.sort_values(["season", "round", "driver_id"]).reset_index(drop=True)
 
 
 def _on_track_positions(df: pd.DataFrame, dsq_last_laps: pd.DataFrame) -> pd.Series:
