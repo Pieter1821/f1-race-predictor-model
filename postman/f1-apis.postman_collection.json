@@ -1,0 +1,76 @@
+{
+  "info": {
+    "name": "F1 Race Predictor - Data Sources",
+    "description": "The HTTP APIs behind the predictor. Jolpica-F1 (Ergast-compatible) supplies results, grids and qualifying; Open-Meteo supplies weather. Run them top to bottom.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "jolpica", "value": "https://api.jolpi.ca/ergast/f1" },
+    { "key": "season", "value": "2026" },
+    { "key": "round", "value": "18" },
+    { "key": "cota_lat", "value": "30.1328" },
+    { "key": "cota_lon", "value": "-97.6411" }
+  ],
+  "item": [
+    {
+      "name": "1. Jolpica - results & grids",
+      "item": [
+        {
+          "name": "Season calendar",
+          "request": { "method": "GET", "url": "{{jolpica}}/{{season}}.json" },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "const races = pm.response.json().MRData.RaceTable.Races;",
+            "pm.test('calendar has races', () => pm.expect(races.length).to.be.above(0));",
+            "console.log(races.map(r => `${r.round} ${r.raceName} ${r.date}`).join('\\n'));"
+          ] } }]
+        },
+        {
+          "name": "Race result (one round)",
+          "request": { "method": "GET", "url": "{{jolpica}}/{{season}}/17/results.json" },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "const res = pm.response.json().MRData.RaceTable.Races[0].Results;",
+            "pm.test('20+ drivers', () => pm.expect(res.length).to.be.at.least(20));",
+            "res.forEach(r => console.log(`P${r.position} from grid ${r.grid} ${r.Driver.code} ${r.Constructor.name} ${r.status}`));"
+          ] } }]
+        },
+        {
+          "name": "Qualifying (today's race)",
+          "request": { "method": "GET", "url": "{{jolpica}}/{{season}}/{{round}}/qualifying.json" }
+        },
+        {
+          "name": "All season results (paginated)",
+          "request": { "method": "GET", "url": "{{jolpica}}/{{season}}/results.json?limit=100&offset=0" }
+        },
+        {
+          "name": "Driver standings",
+          "request": { "method": "GET", "url": "{{jolpica}}/{{season}}/driverStandings.json" }
+        },
+        {
+          "name": "Constructor standings",
+          "request": { "method": "GET", "url": "{{jolpica}}/{{season}}/constructorStandings.json" }
+        },
+        {
+          "name": "Austin track history (COTA)",
+          "request": { "method": "GET", "url": "{{jolpica}}/circuits/americas/results.json?limit=100" }
+        },
+        {
+          "name": "Austin 2025 result",
+          "request": { "method": "GET", "url": "{{jolpica}}/2025/19/results.json" }
+        }
+      ]
+    },
+    {
+      "name": "2. Open-Meteo - weather",
+      "item": [
+        {
+          "name": "Race-day forecast at COTA",
+          "request": { "method": "GET", "url": "https://api.open-meteo.com/v1/forecast?latitude={{cota_lat}}&longitude={{cota_lon}}&hourly=temperature_2m,precipitation_probability,precipitation,wind_speed_10m&timezone=America/Chicago&start_date=2026-10-25&end_date=2026-10-25" }
+        },
+        {
+          "name": "Historical weather (past race day)",
+          "request": { "method": "GET", "url": "https://archive-api.open-meteo.com/v1/archive?latitude={{cota_lat}}&longitude={{cota_lon}}&hourly=temperature_2m,precipitation&timezone=America/Chicago&start_date=2025-10-19&end_date=2025-10-19" }
+        }
+      ]
+    }
+  ]
+}
