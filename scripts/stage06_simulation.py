@@ -20,6 +20,8 @@ from f1pred.models import FINAL_FEATURES, FINISHER_TARGET, TARGET, add_finisher_
 from f1pred.simulate import SimSettings, add_dnf_probability, grid_slot_baseline, probability_scores, simulate_many
 
 pd.set_option("display.width", 170)
+# Stage 6 record (v2). The live settings are reports/sim_settings.json (v3, chosen in Stage 7);
+# running `dev` here rewrites only this historical v2 record.
 SETTINGS_PATH = PROJECT_ROOT / "reports" / "stage06_sim_settings.json"
 phase = sys.argv[1] if sys.argv[1:] in (["dev"], ["test"]) else sys.exit("usage: stage06_simulation.py dev|test")
 SIM_DEV_SEASONS = [2023, 2024]  # 2024 alone was unusually open (pole won 46%); two seasons for "how dominant is pole"

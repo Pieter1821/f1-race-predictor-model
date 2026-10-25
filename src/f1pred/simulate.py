@@ -21,7 +21,7 @@ DNF_PRIOR_WEIGHT = 80
 class SimSettings:
     grid_blend: float = 0.0   # lambda: 0 = pure model score, 1 = pure grid position
     sigma: float = 0.15       # pace noise, in "share of the field" units
-    spacing: str = "linear"   # "log": gaps at the front are bigger than in the midfield
+    spacing: str = "linear"   # "log": front gaps bigger; "score": the model's own predicted gaps
     n_sims: int = 10_000
     seed: int = 0
 
@@ -36,10 +36,14 @@ def _spaced(rank: np.ndarray, n: int, spacing: str) -> np.ndarray:
 def pace_score(model_score: np.ndarray, grid: np.ndarray, grid_blend: float, spacing: str = "linear") -> np.ndarray:
     """Model score and grid both turned into within-race ranks scaled 0..1, then blended.
 
-    Ties share an average rank (equal pace). Never break them by row order: rows from the
-    backtest are stored in finishing order, so that would quietly use the result.
+    Ties share an average rank (equal pace). Never break them by row order: if rows were ever
+    stored in finishing order, that would quietly use the result.
     """
     n = len(model_score)
+    if spacing == "score":  # keep the model's confidence: a clear favourite stands apart, a close fight doesn't
+        model_pct = np.asarray(model_score, dtype=float)
+        grid_pct = _spaced(pd.Series(grid).rank(method="average").to_numpy(), n, "linear")
+        return (1 - grid_blend) * model_pct + grid_blend * grid_pct
     model_pct = _spaced(pd.Series(model_score).rank(method="average").to_numpy(), n, spacing)
     grid_pct = _spaced(pd.Series(grid).rank(method="average").to_numpy(), n, spacing)
     return (1 - grid_blend) * model_pct + grid_blend * grid_pct
@@ -127,3 +131,17 @@ def grid_slot_baseline(history: pd.DataFrame, race: pd.DataFrame, prior_races: f
         p = race["grid"].map(rate).fillna(places / n).to_numpy()
         out[col] = p * places / p.sum()
     return out
+
+
+def temper_win(sim: pd.DataFrame, a: float) -> pd.DataFrame:
+    """Win-probability calibration: p_win ** a, renormalised per race (a > 1 = trust favourites more).
+
+    The raw simulation under-rates clear favourites and over-rates long shots (same pattern on
+    2023-24 dev and 2025-26). Podium/points are already calibrated and left alone. P(win) is capped
+    at P(podium) so a driver can never be likelier to win than to finish on the podium.
+    """
+    key = sim["season"] * 100 + sim["round"]
+    q = sim["p_win"].clip(lower=1e-9) ** a
+    q = q / q.groupby(key).transform("sum")
+    out = sim.assign(p_win_raw=sim["p_win"], p_win=np.minimum(q, sim["p_podium"]))
+    return out.assign(p_win=out["p_win"] / out.groupby(key)["p_win"].transform("sum"))
