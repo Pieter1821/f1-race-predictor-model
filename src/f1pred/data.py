@@ -1,11 +1,16 @@
-"""Load race results from Jolpica (through FastF1's Ergast client) into one tidy, validated table."""
+"""Load race results from Jolpica (through FastF1's Ergast client) into one tidy, validated table.
+
+Everything is loaded "as of" a moment in time, normally the start of the race we're predicting:
+races at or after that moment don't exist yet as far as the model is concerned.
+"""
 import re
-from datetime import date, datetime, timezone
+from datetime import date, datetime, time
+from pathlib import Path
 
 import pandas as pd
 from fastf1.ergast import Ergast
 
-from f1pred.config import DATA_DIR, SEASONS, enable_cache
+from f1pred.config import DATA_DIR, SEASONS, TARGET_ROUND, TARGET_SEASON, enable_cache
 
 SNAPSHOT_DIR = DATA_DIR / "snapshots"
 
@@ -22,10 +27,12 @@ RESULT_COLUMNS = {
 
 NON_STARTERS = {"Did not start", "Withdrew"}
 
-# Races where only 19 cars were entered, with the reason
+# Cars entered per race, by season
+EXPECTED_ENTRIES = {2022: 20, 2023: 20, 2024: 20, 2025: 20, 2026: 22}
+# Races with one car fewer than usual, with the reason
 KNOWN_SHORT_FIELDS = {
-    (2024, 3): "Sargeant withdrawn, his car given to Albon",
-    (2025, 9): "Stroll withdrew injured",
+    (2024, 3): (19, "Sargeant withdrawn, his car given to Albon"),
+    (2025, 9): (19, "Stroll withdrew injured"),
 }
 
 # Jolpica's status text -> what happened. Since 2023 most retirements are just "Retired" (cause unknown).
@@ -58,6 +65,8 @@ def status_bucket(status: str) -> str:
         raise ValueError(f"Unmapped status {status!r}: add it to STATUS_BUCKETS") from None
 
 
+# ---------------------------------------------------------------- fetching from the API
+
 def _ergast() -> Ergast:
     enable_cache()
     return Ergast(result_type="pandas", auto_cast=True, limit=100)
@@ -75,7 +84,7 @@ def _flatten(response, races: list[pd.DataFrame]) -> None:
         races.append(df)
 
 
-def load_season_results(season: int) -> pd.DataFrame:
+def fetch_season_results(season: int) -> pd.DataFrame:
     """All race results for one season, exactly as Jolpica returns them. Pages of 100 rows."""
     response = _ergast().get_race_results(season=season)
     races: list[pd.DataFrame] = []
@@ -91,18 +100,25 @@ def load_season_results(season: int) -> pd.DataFrame:
     return df.drop_duplicates(subset=["season", "round", "driver_id"]).reset_index(drop=True)
 
 
-def completed_races_on_calendar(season: int, now: datetime | None = None) -> int:
-    """How many of the season's races had started by `now`, according to the official calendar."""
-    now = now or datetime.now(timezone.utc)
-    schedule = _ergast().get_race_schedule(season=season)
-    starts = pd.to_datetime(
-        schedule["raceDate"].astype(str) + " " + schedule["raceTime"].astype(str).fillna("00:00:00"), utc=True
-    )
-    return int((starts < now).sum())
+def _combine(day: pd.Timestamp, clock: time | None) -> pd.Timestamp:
+    """Race date + start time (UTC). A missing start time counts as midnight."""
+    if clock is None or pd.isna(clock):
+        clock = time(0, 0)
+    return pd.Timestamp(datetime.combine(day.date(), clock.replace(tzinfo=None)), tz="UTC")
 
 
-def load_dsq_last_laps(raw: pd.DataFrame) -> pd.DataFrame:
-    """For each disqualified driver: the position they held on their last lap (where they crossed the line)."""
+def fetch_schedule(season: int) -> pd.DataFrame:
+    s = _ergast().get_race_schedule(season=season)
+    return pd.DataFrame({
+        "season": season,
+        "round": s["round"],
+        "race_name": s["raceName"],
+        "start_utc": [_combine(d, t) for d, t in zip(s["raceDate"], s["raceTime"])],
+    })
+
+
+def fetch_dsq_last_laps(raw: pd.DataFrame) -> pd.DataFrame:
+    """For each disqualified driver: their last lap and the position they held on it."""
     rows = []
     for _, r in raw[raw["status"] == "Disqualified"].iterrows():
         laps = _ergast().get_lap_times(season=r["season"], round=r["round"], driver=r["driver_id"]).content
@@ -114,31 +130,66 @@ def load_dsq_last_laps(raw: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(rows, columns=["season", "round", "driver_id", "last_lap", "last_lap_position"])
 
 
-def save_snapshot(raw: pd.DataFrame, dsq: pd.DataFrame, seasons=SEASONS) -> None:
-    """Dated copy of exactly what the API returned, so results can be reproduced if the API changes."""
-    SNAPSHOT_DIR.mkdir(parents=True, exist_ok=True)
-    tag = f"{min(seasons)}-{max(seasons)}_{date.today().isoformat()}"
-    raw.to_csv(SNAPSHOT_DIR / f"jolpica_results_{tag}.csv", index=False)
-    dsq.to_csv(SNAPSHOT_DIR / f"jolpica_dsq_last_laps_{tag}.csv", index=False)
+# ---------------------------------------------------------------- snapshots
+
+def save_snapshot(raw: pd.DataFrame, schedule: pd.DataFrame, dsq: pd.DataFrame, seasons=SEASONS) -> Path:
+    """Dated copy of exactly what the API returned, so every result can be reproduced later."""
+    path = SNAPSHOT_DIR / f"jolpica_{min(seasons)}-{max(seasons)}_{date.today().isoformat()}"
+    path.mkdir(parents=True, exist_ok=True)
+    raw.to_csv(path / "results.csv", index=False)
+    schedule.to_csv(path / "schedule.csv", index=False)
+    dsq.to_csv(path / "dsq_last_laps.csv", index=False)
+    return path
 
 
-def validate_raw(raw: pd.DataFrame, seasons=SEASONS) -> None:
-    for season in seasons:
-        loaded = raw.loc[raw["season"] == season, "round"].nunique()
-        expected = completed_races_on_calendar(season)
-        assert loaded == expected, f"{season}: loaded {loaded} races, calendar says {expected} have run"
+def read_snapshot(path: Path) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    path = Path(path)
+    raw = pd.read_csv(path / "results.csv", parse_dates=["date"])
+    schedule = pd.read_csv(path / "schedule.csv")
+    schedule["start_utc"] = pd.to_datetime(schedule["start_utc"], utc=True)
+    dsq = pd.read_csv(path / "dsq_last_laps.csv")
+    return raw, schedule, dsq
+
+
+# ---------------------------------------------------------------- as-of filtering and validation
+
+def target_race_start(schedule: pd.DataFrame, season=TARGET_SEASON, rnd=TARGET_ROUND) -> pd.Timestamp:
+    row = schedule[(schedule["season"] == season) & (schedule["round"] == rnd)]
+    assert len(row) == 1, f"{season} R{rnd} is not on the calendar"
+    return row["start_utc"].iloc[0]
+
+
+def races_before(schedule: pd.DataFrame, as_of: pd.Timestamp) -> pd.DataFrame:
+    """Calendar rows for races that started strictly before `as_of`."""
+    return schedule[schedule["start_utc"] < as_of]
+
+
+def restrict_to_as_of(raw: pd.DataFrame, schedule: pd.DataFrame, as_of: pd.Timestamp) -> pd.DataFrame:
+    """Drop every result from a race at or after `as_of`: that race hasn't happened yet."""
+    known = races_before(schedule, as_of)[["season", "round"]]
+    return raw.merge(known, on=["season", "round"], how="inner")
+
+
+def validate_raw(raw: pd.DataFrame, schedule: pd.DataFrame, as_of: pd.Timestamp) -> None:
+    expected = races_before(schedule, as_of).groupby("season").size()
+    loaded = raw.groupby("season")["round"].nunique()
+    for season, n in expected.items():
+        assert loaded.get(season, 0) == n, f"{season}: loaded {loaded.get(season, 0)} races, calendar says {n} ran before {as_of}"
     for (season, rnd), race in raw.groupby(["season", "round"]):
         entries = len(race)
         if (season, rnd) in KNOWN_SHORT_FIELDS:
-            assert entries == 19, f"{season} R{rnd}: expected the documented 19-car field, got {entries}"
+            want, _reason = KNOWN_SHORT_FIELDS[(season, rnd)]
         else:
-            assert entries in (20, 22), f"{season} R{rnd}: {entries} entries, expected 20 or 22"
+            want = EXPECTED_ENTRIES[season]
+        assert entries == want, f"{season} R{rnd}: {entries} entries, expected {want}"
         _assert_positions_complete(race["position"], f"{season} R{rnd} (raw)")
 
 
 def _assert_positions_complete(positions: pd.Series, label: str) -> None:
     assert sorted(positions) == list(range(1, len(positions) + 1)), f"{label}: positions are not 1..N"
 
+
+# ---------------------------------------------------------------- cleaning
 
 def clean_results(raw: pd.DataFrame, dsq_last_laps: pd.DataFrame) -> pd.DataFrame:
     df = raw.copy()
@@ -163,30 +214,65 @@ def clean_results(raw: pd.DataFrame, dsq_last_laps: pd.DataFrame) -> pd.DataFram
 
 
 def _on_track_positions(df: pd.DataFrame, dsq_last_laps: pd.DataFrame) -> pd.Series:
-    """Official order, except disqualified drivers go back to where they crossed the line.
+    """Official order, except disqualified drivers go back to where they actually ran.
 
-    The official target stays `position`; this is only for history features
-    (a DSQ'd P2 still shows the car's real pace).
+    - DSQ after completing the full distance: the position they crossed the line in.
+    - DSQ partway through (black flag): treated like a retirement at that lap, i.e.
+      behind everyone who completed more laps.
+
+    The official target stays `position`; this is only for history features.
     """
     out = df["position"].copy()
-    dsq = dsq_last_laps.set_index(["season", "round", "driver_id"])["last_lap_position"]
+    dsq = dsq_last_laps.set_index(["season", "round", "driver_id"])
     for (season, rnd), race in df.groupby(["season", "round"]):
-        dsq_here = {d: dsq[(season, rnd, d)] for d in race["driver_id"] if (season, rnd, d) in dsq.index}
+        dsq_here = [d for d in race["driver_id"] if (season, rnd, d) in dsq.index]
         if not dsq_here:
             continue
-        others = race[~race["driver_id"].isin(dsq_here)].sort_values("position")["driver_id"].tolist()
-        order = others[:]
-        for driver, pos in sorted(dsq_here.items(), key=lambda kv: kv[1]):
-            order.insert(min(pos, len(order) + 1) - 1, driver)
-        new_pos = {d: i + 1 for i, d in enumerate(order)}
+        race_distance = race["laps"].max()
+        order = race[~race["driver_id"].isin(dsq_here)].sort_values("position")
+        order = list(zip(order["driver_id"], order["laps"]))
+        for driver in sorted(dsq_here, key=lambda d: dsq.loc[(season, rnd, d), "last_lap_position"]):
+            last_lap, last_pos = dsq.loc[(season, rnd, driver), ["last_lap", "last_lap_position"]]
+            if last_lap >= race_distance:
+                slot = min(last_pos, len(order) + 1) - 1
+            else:
+                # behind everyone who completed at least as many laps
+                slot = sum(1 for _, laps in order if laps >= last_lap)
+            order.insert(slot, (driver, last_lap))
+        new_pos = {d: i + 1 for i, (d, _) in enumerate(order)}
         out.loc[race.index] = race["driver_id"].map(new_pos).values
     return out.astype(int)
 
 
-def load_results(seasons=SEASONS, snapshot: bool = False) -> pd.DataFrame:
-    raw = pd.concat([load_season_results(s) for s in seasons], ignore_index=True)
-    validate_raw(raw, seasons)
-    dsq = load_dsq_last_laps(raw)
-    if snapshot:
-        save_snapshot(raw, dsq, seasons)
-    return clean_results(raw, dsq)
+# ---------------------------------------------------------------- entry point
+
+def load_results(
+    seasons=SEASONS,
+    as_of: pd.Timestamp | None = None,
+    from_snapshot: Path | None = None,
+    save_new_snapshot: bool = False,
+) -> pd.DataFrame:
+    """Clean results for every race that started before `as_of` (default: the target race's start).
+
+    from_snapshot: read a committed snapshot folder instead of calling the API.
+    The returned table's .attrs record which source and cutoff were used.
+    """
+    if from_snapshot is not None:
+        raw, schedule, dsq = read_snapshot(from_snapshot)
+        raw = raw[raw["season"].isin(seasons)]
+        schedule = schedule[schedule["season"].isin(seasons)]
+        source = f"snapshot {Path(from_snapshot).name}"
+    else:
+        raw = pd.concat([fetch_season_results(s) for s in seasons], ignore_index=True)
+        schedule = pd.concat([fetch_schedule(s) for s in seasons], ignore_index=True)
+        dsq = fetch_dsq_last_laps(raw)
+        source = "api"
+        if save_new_snapshot:
+            source = f"api (saved as {save_snapshot(raw, schedule, dsq, seasons).name})"
+
+    as_of = as_of if as_of is not None else target_race_start(schedule)
+    raw = restrict_to_as_of(raw, schedule, as_of)
+    validate_raw(raw, schedule, as_of)
+    df = clean_results(raw, dsq)
+    df.attrs.update({"source": source, "as_of": as_of.isoformat()})
+    return df
