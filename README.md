@@ -81,12 +81,37 @@ grid A-B-C-D, actual B-A-D-C):
 | Log loss | −ln P(actual winner) | 45% → 0.80; 5% → 3.0 | uniform 3.09, ours ≈ 1.2 |
 | Bootstrap CI | resample races 10,000×, middle 95% of the mean gain | −0.10 [−0.21, +0.004] | excludes 0 = convincing |
 
+## Model versions
+
+| Version | Used for | Change | Walk-forward 2023-26 MAE (87 races) |
+|---|---|---|---|
+| v1 | Austin 2026 (official) | — | 3.086 (grid 3.276; gain 0.19 places, CI [0.09, 0.29]) |
+| **v2** | default from 2026 R19 | drop `driver_vs_teammate` | 3.066; the honest (nested) gain over v1 is −0.002, a tie, so it's kept because simpler |
+
+**Over-/underfitting check** (`scripts/diagnose.py`): training and walk-forward errors are close (about 3.1
+places), more flexible models don't help, and 400 trees overfit. The model is short of *information*, not
+capacity.
+
+**Experiments, 25 Oct** (all logged in `reports/experiments.csv`, failures included):
+- Rejected:
+  - weighted ensemble, and LambdaRank,
+  - sprint features,
+  - in-season win re-calibration,
+  - four recency weightings,
+  - a front-row start bonus.
+- A nested **pole start bonus** was promising (win Brier −0.0003, log loss −0.010, both CIs just touching 0)
+  but rejected for now. Re-test it after the 2026 season.
+
+The biggest untested lever is **practice data** (long-run pace, tyre wear). It needs an F1 TV Access login,
+and coverage of past seasons is unverified.
+
 ## Rules (fixed 25 Oct 2026, before the Austin result was known)
 
 **Official predictions.**
 - The first prediction saved and pushed before lights out is the official one.
 - If the official starting grid changes before lights out (pit-lane start, late penalty), re-run
-  `predict_race.py` with corrected inputs. That input-only refresh becomes official.
+  `predict_race.py` with corrected inputs and the same model version (for Austin 2026: `--model v1`).
+  That input-only refresh becomes official.
 - A model change never replaces the official prediction for a race. A new model version becomes the
   default from the next race. For Austin 2026, `2026_R18_20261025T083234Z.csv` stays official.
 - Variants are scored alongside it, but marked as not official.
