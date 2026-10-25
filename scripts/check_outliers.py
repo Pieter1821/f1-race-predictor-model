@@ -6,6 +6,7 @@ import pandas as pd
 
 from f1pred.config import SNAPSHOT, TARGET_ROUND, TARGET_SEASON
 from f1pred.data import load_raw, load_results, race_start, restrict_to_as_of
+from f1pred.race_inputs import RaceInputError, load_race_inputs
 from f1pred.validate import score_many
 
 pd.set_option("display.width", 160)
@@ -133,6 +134,23 @@ print(rk.to_string())
 nt = results[results["new_team"]].groupby(["team", "season"])["round"].apply(lambda s: sorted(set(s)))
 print("new teams (fewer than 3 prior races after lineage mapping):")
 print(nt.to_string() if len(nt) else "none")
+
+header("13. Join coverage: race results with no qualifying row")
+no_quali = results[results["quali_position"].isna()]
+print(f"{len(no_quali)} of {len(results)} results have no qualifying row")
+if len(no_quali):
+    print(no_quali[["season", "round", "race_name", "driver_code", "grid", "status"]].to_string(index=False))
+
+header(f"14. Pre-race inputs for {TARGET_SEASON} R{TARGET_ROUND} (hand-entered CSVs vs real history)")
+quali_start = data.schedule.set_index(["season", "round"]).loc[(TARGET_SEASON, TARGET_ROUND), "qualifying_start_utc"]
+try:
+    inputs = load_race_inputs(TARGET_SEASON, TARGET_ROUND, results, quali_start, as_of)
+    print(f"{len(inputs)} drivers OK | qualifying started {quali_start} (before cutoff {as_of})")
+    moved = inputs[inputs["grid_penalty"] != 0].sort_values("grid_penalty", ascending=False)
+    print(moved[["driver_id", "quali_position", "grid", "grid_penalty"]].to_string(index=False))
+except RaceInputError as e:
+    print(e)
+    errors.append("pre-race inputs invalid")
 
 print("\n" + ("DATA ERRORS: " + "; ".join(errors) if errors else "No data errors found."))
 raise SystemExit(1 if errors else 0)
