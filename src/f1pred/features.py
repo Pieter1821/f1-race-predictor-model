@@ -198,3 +198,23 @@ def add_dnf_rate(df: pd.DataFrame) -> pd.DataFrame:
     df["team_dnf_rate"] = prior_mean(df, "team", "dnf", prior_weight=10)
     df["driver_dnf_rate"] = prior_mean(df, "driver_id", "dnf", prior_weight=10)
     return df
+
+
+SPRINT_FEATURES = ["has_sprint", "sprint_position_pct", "sprint_gain"]
+
+
+def add_sprint_features(df: pd.DataFrame, sprints: pd.DataFrame) -> pd.DataFrame:
+    """Same-weekend sprint result as a pre-race input (the sprint runs on Saturday). 2023+ only: in 2022
+    the sprint set the race grid, which is already a feature. Without a sprint: position = grid, gain = 0."""
+    s = sprints[sprints["season"] >= 2023].copy()
+    n = s.groupby(["season", "round"])["driver_id"].transform("count")
+    s["sprint_grid"] = s["sprint_grid"].where(s["sprint_grid"] > 0, n)  # pit-lane start = back
+    s["sprint_position_pct"] = s["sprint_position"] / n
+    s["sprint_gain"] = (s["sprint_grid"] - s["sprint_position"]) / n
+    out = df.merge(s[["season", "round", "driver_id", "sprint_position_pct", "sprint_gain"]],
+                   on=["season", "round", "driver_id"], how="left", validate="many_to_one")
+    out.index = df.index
+    out["has_sprint"] = out["sprint_position_pct"].notna().astype(int)
+    out["sprint_position_pct"] = out["sprint_position_pct"].fillna(out["grid_pct"])
+    out["sprint_gain"] = out["sprint_gain"].fillna(0.0)
+    return out

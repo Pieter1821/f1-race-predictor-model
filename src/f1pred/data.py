@@ -367,3 +367,27 @@ def load_results(as_of: pd.Timestamp, from_snapshot: Path | None = None,
     df = add_context(clean_results(raw, data.dsq_last_laps), data)
     df.attrs.update({"source": data.source, "as_of": as_of.isoformat()})
     return df
+
+
+# ---------------------------------------------------------------- sprints (Part 2 experiment)
+
+SPRINT_COLUMNS = {"driverId": "driver_id", "grid": "sprint_grid", "position": "sprint_position",
+                  "status": "sprint_status"}
+
+
+def fetch_season_sprints(season: int) -> pd.DataFrame:
+    """Sprint results for one season (run on Saturday, so known before the Grand Prix)."""
+    try:
+        pages = _all_pages(_ergast().get_sprint_results(season=season))
+    except Exception:  # seasons without sprints return no content
+        return pd.DataFrame(columns=["season", "round", *SPRINT_COLUMNS.values()])
+    df = _race_tables(pages, SPRINT_COLUMNS)
+    return df[["season", "round", *SPRINT_COLUMNS.values()]]
+
+
+def save_sprint_snapshot(seasons=SEASONS) -> Path:
+    df = pd.concat([fetch_season_sprints(s) for s in seasons], ignore_index=True)
+    path = SNAPSHOT_DIR / f"jolpica_sprints_{min(seasons)}-{max(seasons)}_{snapshot_stamp()}"
+    path.mkdir(parents=True, exist_ok=False)
+    df.to_csv(path / "sprints.csv", index=False)
+    return path
