@@ -1,0 +1,35 @@
+{
+  "dropped_per_half_season": {
+    "2023H1": [],
+    "2023H2": [],
+    "2024H1": [
+      "driver_vs_teammate"
+    ],
+    "2024H2": [
+      "driver_vs_teammate"
+    ],
+    "2025H1": [
+      "driver_recent_form",
+      "driver_vs_teammate",
+      "grid",
+      "teammate_quali_delta"
+    ],
+    "2025H2": [
+      "driver_recent_form",
+      "driver_vs_teammate"
+    ],
+    "2026H1": [
+      "driver_recent_form",
+      "driver_vs_teammate"
+    ],
+    "2026H2": [
+      "driver_vs_teammate"
+    ]
+  },
+  "mae_change": -0.0017116109675093473,
+  "ci": [
+    -0.024177711782067523,
+    0.020352954835713442
+  ],
+  "decision": "ACCEPT (simpler, not measurably worse)"
+}
