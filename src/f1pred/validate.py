@@ -6,8 +6,8 @@ from scipy.stats import spearmanr
 def predicted_rank(race: pd.DataFrame, pred_col: str) -> pd.Series:
     """Turn a prediction score into places 1..N.
 
-    Ties are broken by grid, then driver_id, never by row order: rows are stored in
-    finishing order, so a row-order tie-break would quietly use the result.
+    Ties are broken by grid, then driver_id, never by row order: rows used to be stored in
+    finishing order, where a row-order tie-break would quietly use the result.
     """
     order = race.sort_values([pred_col, "grid", "driver_id"], kind="stable").index
     return pd.Series(range(1, len(race) + 1), index=order).reindex(race.index)

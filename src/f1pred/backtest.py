@@ -30,8 +30,9 @@ def walk_forward(table: pd.DataFrame, make_model: Callable, features: list[str],
     keys = race_key(history)
     preds = []
     for key in sorted(keys[history["season"].isin(test_seasons)].unique()):
-        train = history[(keys < key) & history[target].notna()]
-        test = history[keys == key]
+        # explicit neutral order: model fitting (e.g. LightGBM row subsampling) must not depend on upstream order
+        train = history[(keys < key) & history[target].notna()].sort_values(["season", "round", "driver_id"])
+        test = history[keys == key].sort_values("driver_id")
         assert train[["season", "round"]].drop_duplicates().shape[0] >= min_train_races
         assert (race_key(train) < key).all()  # never train on the race being predicted, or later
         weights = None if weighting is None else recency_weights(train, **weighting).to_numpy()
