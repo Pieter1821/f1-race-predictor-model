@@ -1,6 +1,6 @@
 """Part 3: v2 (v1 minus driver_vs_teammate) vs v1 vs grid, walk-forward 2023-26, with simulation guardrails.
 
-    python scripts/part3_v2_check.py
+    python scripts/experiments/part3_v2_check.py
 Adopt v2 from the next race only if it ties or wins: order MAE not measurably worse and no guardrail
 (Spearman, winner, podium, Brier total, winner log loss) clearly worse.
 """
@@ -16,7 +16,7 @@ from f1pred.simulate import settings_from_config, simulate_many, temper_win
 
 V1 = list(config.FEATURES)
 V2 = [f for f in V1 if f != "driver_vs_teammate"]
-_, _, _, table = history_table()
+_, _, _, table = history_table(config.TARGET_SEASON, config.TARGET_ROUND)  # recorded for Austin 2026
 
 o1, o2 = order_scores(table, V1), order_scores(table, V2)
 grid = order_scores(table, V1, make=GridBaseline)
@@ -55,7 +55,7 @@ for m in ("brier_total", "log_loss"):
           f"{'  CLEARLY WORSE' if lo > 0 else ''}")
 
 adopt = r["accepted"] and not worse
-decision = "ADOPT v2 from the next race" if adopt else "keep v1"
+decision = "adopted: v2 from the next race" if adopt else "reject: keep v1"
 experiments.log("Part 3: v2 full check incl. simulation guardrails", SEASONS,
                 {"mae_change": r["mae_change"], "brier_total_change": (s2["brier_total"] - s1["brier_total"]).mean(),
                  "log_loss_change": (s2["log_loss"] - s1["log_loss"]).mean()}, r["ci"], decision)

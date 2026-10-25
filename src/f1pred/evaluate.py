@@ -1,9 +1,9 @@
 """Part 2 harness: compare a candidate change with the current model on walk-forward 2023-26.
 
-Acceptance (README "Rules"): the bootstrap 95% CI of the per-race MAE change excludes zero (better),
+Candidate (README "Rules"): the bootstrap 95% CI of the per-race MAE change excludes zero (better),
 it helps in at least 3 of 4 seasons, and no guardrail (Spearman, winner, podium) is clearly worse.
-A simplification is accepted when it is not measurably worse (mean change within the noise floor
-and its CI does not show it clearly worse).
+A simplification is a candidate only when its worst case (the CI's upper end) stays within the noise
+floor. Candidates become the model only through a separate adoption check, logged as "adopted".
 """
 import pandas as pd
 
@@ -35,12 +35,15 @@ def compare(base: pd.DataFrame, cand: pd.DataFrame, change: str, simplification:
         glo, ghi = experiments.bootstrap_ci(gd)
         if ghi < 0:
             clearly_worse.append(g)
+    # Decisions are "candidate" or "reject": adopting a change is a separate, logged step (Part 3).
     if simplification:
-        ok = d.mean() <= NOISE_FLOOR and lo <= 0 and not clearly_worse
-        decision = "ACCEPT (simpler, not measurably worse)" if ok else "reject (simplification costs accuracy)"
+        # Simpler is only allowed when even the worst case (the CI's upper end) stays within the noise floor;
+        # a wide CI means "not measured precisely", not "not worse".
+        ok = hi <= NOISE_FLOOR and not clearly_worse
+        decision = "candidate (simpler; worst case within noise)" if ok else "reject (worst case above noise)"
     else:
         ok = hi < 0 and better_seasons >= 3 and not clearly_worse
-        decision = "ACCEPT" if ok else "reject"
+        decision = "candidate (beats noise, 3+ seasons)" if ok else "reject"
     result = {"change": change, "mae_change": d.mean(), "ci": (lo, hi), "better_seasons": better_seasons,
               "per_season": per_season.round(3).to_dict(), "guardrails_worse": clearly_worse,
               "decision": decision, "accepted": ok}
