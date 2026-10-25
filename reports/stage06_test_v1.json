@@ -1,0 +1,7 @@
+{
+  "note": "Official one-time Stage 6 test (2025-26), settings chosen on 2024 dev before scoring. The simulation LOST to the naive grid-slot baseline. Any later re-check of 2025-26 is contaminated, because the v2 fix was designed after seeing this result.",
+  "settings": {"target": "finisher_pct", "grid_blend": 0.25, "sigma": 0.12, "spacing": "linear"},
+  "simulation": {"brier_total": 0.2599, "winner_log_loss": 1.295, "p_actual_winner": 0.344},
+  "naive_grid_slot_baseline": {"brier_total": 0.2516, "winner_log_loss": 1.168, "p_actual_winner": 0.409},
+  "diagnosis": "Pole-sitter P(win) averaged 0.40 (naive 0.53, actual 0.68): linear pace spacing makes front-runners swap too easily. DNF probabilities were well calibrated (0.142 vs 0.145 actual)."
+}
