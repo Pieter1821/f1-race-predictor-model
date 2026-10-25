@@ -70,7 +70,8 @@ def git_commit() -> str:
     def git(*args):
         return subprocess.run(["git", *args], cwd=PROJECT_ROOT, capture_output=True, text=True, check=True).stdout.strip()
     try:
-        dirty = git("status", "--porcelain", "--", "src", "scripts", "reports")
+        # reports/experiments.csv is an append-only log that scripts write while running; it isn't model code
+        dirty = git("status", "--porcelain", "--", "src", "scripts", "reports", ":(exclude)reports/experiments.csv")
         return git("rev-parse", "--short", "HEAD") + ("+uncommitted" if dirty else "")
     except (OSError, subprocess.CalledProcessError):
         return "unknown"
