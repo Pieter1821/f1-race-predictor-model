@@ -9,12 +9,13 @@ from datetime import datetime, timezone
 
 import pandas as pd
 
+from f1pred import config
 from f1pred.config import MANUAL_DIR, PROJECT_ROOT
 from f1pred.data import NON_STARTERS, TEAM_LINEAGE, RawData
 from f1pred.features import append_target_race, build_features
-from f1pred.models import FINAL_FEATURES, FINISHER_TARGET, add_finisher_target, final_model, final_sim_model
+from f1pred.models import add_finisher_target, final_model, final_sim_model
 from f1pred.race_inputs import load_race_inputs
-from f1pred.simulate import SimSettings, add_dnf_probability, race_probabilities, temper_win
+from f1pred.simulate import add_dnf_probability, race_probabilities, settings_from_config, temper_win
 from f1pred.validate import predicted_rank
 
 SIM_SETTINGS_PATH = PROJECT_ROOT / "reports" / "sim_settings.json"
@@ -76,27 +77,25 @@ def git_commit() -> str:
 
 
 def predict(history: pd.DataFrame, inputs: pd.DataFrame, circuit_id: str, as_of: pd.Timestamp,
-            n_sims: int = 20_000) -> pd.DataFrame:
+            n_sims: int | None = None) -> pd.DataFrame:
     """Train the locked models on every earlier race, predict the target race, simulate it."""
     table = build_features(append_target_race(history, inputs, circuit_id, as_of.normalize().tz_localize(None)))
     table = add_dnf_probability(add_finisher_target(table))
     train = table[~table["is_target"] & table["position"].notna()].sort_values(["season", "round", "driver_id"])
     target = table[table["is_target"]].sort_values("driver_id").copy()
-    assert not target[FINAL_FEATURES].isna().any().any(), "target race has missing features"
+    assert not target[config.FEATURES].isna().any().any(), "target race has missing features"
 
     # 1. Order model (Stage 5, locked): predicted finishing order
-    order = final_model().fit(train, FINAL_FEATURES)
-    target["order_score"] = order.predict(target, FINAL_FEATURES)
+    order = final_model().fit(train, config.FEATURES)
+    target["order_score"] = order.predict(target, config.FEATURES)
     target["predicted_position"] = predicted_rank(target, "order_score")
 
     # 2. Simulation (v3.1): finishers-only pace model + DNF dice + win calibration
-    s = json.loads(SIM_SETTINGS_PATH.read_text())
-    pace = final_sim_model(target=s["target"]).fit(train[train[FINISHER_TARGET].notna()], FINAL_FEATURES)
-    target["pred"] = pace.predict(target, FINAL_FEATURES)
-    sim = race_probabilities(target, SimSettings(grid_blend=s["grid_blend"], sigma=s["sigma"],
-                                                 spacing=s["spacing"], n_sims=n_sims))
-    sim = temper_win(sim, s["win_temperature"])
-    sim.attrs["sim_version"] = s["version"]
+    pace = final_sim_model().fit(train[train[config.SIM_TARGET].notna()], config.FEATURES)
+    target["pred"] = pace.predict(target, config.FEATURES)
+    sim = race_probabilities(target, settings_from_config(n_sims))
+    sim = temper_win(sim, config.SIM_WIN_TEMPERATURE)
+    sim.attrs["sim_version"] = json.loads(SIM_SETTINGS_PATH.read_text())["version"]
     sim.attrs["train_races"] = train.groupby(["season", "round"]).ngroups
     return sim
 

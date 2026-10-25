@@ -20,7 +20,7 @@ parser.add_argument("--season", type=int, required=True)
 parser.add_argument("--round", type=int, required=True)
 parser.add_argument("--backtest", action="store_true", help="allow a race that has already started")
 parser.add_argument("--snapshot", type=Path, help="use this snapshot instead of fetching fresh data")
-parser.add_argument("--n-sims", type=int, default=20_000)
+parser.add_argument("--n-sims", type=int, default=None, help="default: config.N_SIMS")
 args = parser.parse_args()
 
 seasons = range(FIRST_SEASON, args.season + 1)
