@@ -18,7 +18,8 @@ TARGET_SEASON, TARGET_ROUND = 2026, 18  # United States GP, Austin
 JOLPICA_URL = "https://api.jolpi.ca/ergast/f1"
 
 # The committed data snapshot the pipeline trains on (every prediction records this)
-SNAPSHOT = DATA_DIR / "snapshots" / "jolpica_2022-2026_2026-10-25"
+SNAPSHOT = DATA_DIR / "snapshots" / "jolpica_2022-2026_2026-10-25T0711Z"
+WEATHER_SNAPSHOT = DATA_DIR / "snapshots" / "openmeteo_previous_runs_2022-2026_2026-10-25T0713Z"
 
 
 def enable_cache() -> None:
