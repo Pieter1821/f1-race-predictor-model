@@ -13,6 +13,8 @@ from sklearn.linear_model import Ridge
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 
+from f1pred import config
+
 TARGET = "position_pct"  # official finishing position / starters: 0 = front, 1 = back
 # Order among cars that finished: 0 = first finisher, 1 = last. "Pace if he finishes", no reliability
 # baked in, for the simulation (which adds DNFs itself; using TARGET there would count DNF risk twice)
@@ -37,11 +39,11 @@ class GridBaseline:
 
 
 class RidgeModel:
-    def __init__(self, alpha: float = 1.0, name: str = "ridge", target: str = TARGET):
+    def __init__(self, alpha: float | None = None, name: str = "ridge", target: str = TARGET):
         self.alpha, self.name, self.target = alpha, name, target
 
     def fit(self, train, features, weights=None):
-        self.pipe = make_pipeline(SimpleImputer(strategy="median"), StandardScaler(), Ridge(alpha=self.alpha))
+        self.pipe = make_pipeline(SimpleImputer(strategy="median"), StandardScaler(), Ridge(alpha=config.RIDGE_ALPHA if self.alpha is None else self.alpha))
         self.pipe.fit(train[features], train[self.target], ridge__sample_weight=weights)
         return self
 
@@ -65,7 +67,7 @@ class LGBMRegressorModel:
         return rows["grid_pct"].to_numpy() if self.residual else 0.0
 
     def fit(self, train, features, weights=None):
-        self.model = lgb.LGBMRegressor(random_state=0, **self.params)
+        self.model = lgb.LGBMRegressor(random_state=config.SEED, **self.params)
         self.model.fit(train[features], train[self.target] - self._offset(train), sample_weight=weights)
         return self
 
@@ -84,7 +86,7 @@ class LGBMRankerModel:
         groups = train.groupby(["season", "round"], sort=False).size().to_numpy()
         # Relevance: higher = better. Finishing order turned into 0..30 (lambdarank's label range)
         relevance = np.round((1 - train[TARGET]) * 30).astype(int)
-        self.model = lgb.LGBMRanker(objective="lambdarank", random_state=0, **self.params)
+        self.model = lgb.LGBMRanker(objective="lambdarank", random_state=config.SEED, **self.params)
         # every car in a race carries that race's recency weight
         self.model.fit(train[features], relevance, group=groups, sample_weight=train["_w"].to_numpy())
         return self
@@ -112,21 +114,22 @@ class Ensemble:
 
 # ---------------------------------------------------------------- the model chosen in Stage 5
 # Chosen on 2024 walk-forward dev races only (rule: lowest dev MAE; within 0.02 -> simpler model),
-# before the 2025-26 test races were scored. Recency weighting: uniform (weights didn't help on dev).
-FINAL_FEATURES = ["grid", "grid_pct", "quali_position", "grid_penalty", "quali_best_gap_pct", "no_quali_time",
-                  "teammate_quali_delta", "sprint_sets_grid", "team_form", "driver_level", "driver_recent_form",
-                  "driver_standing", "constructor_standing", "track_level", "team_dnf_rate", "driver_vs_teammate"]
-FINAL_WEIGHTING = None
+# before the 2025-26 test races were scored. Settings live in config.py.
+FINAL_FEATURES = config.FEATURES          # alias kept for scripts; functions read config at call time
+FINAL_WEIGHTING = config.RECENCY_WEIGHTING
 
 
-def final_model(params_path=None, target: str = TARGET) -> Ensemble:
+def _members(target: str) -> list:
     import json
+    params = json.loads(config.LGBM_PARAMS_FILE.read_text())["params"]
+    makers = {"ridge": lambda: RidgeModel(target=target),
+              "lightgbm": lambda: LGBMRegressorModel(residual=True, target=target, **params)}
+    return [makers[name]() for name in config.ENSEMBLE_MEMBERS]
 
-    from f1pred.config import PROJECT_ROOT
-    path = params_path or PROJECT_ROOT / "reports" / "stage05_lgbm_params.json"
-    params = json.loads(path.read_text())["params"]
-    return Ensemble([RidgeModel(target=target), LGBMRegressorModel(residual=True, target=target, **params)],
-                    name="ridge + tuned lightgbm")
+
+def final_model(target: str = TARGET) -> Ensemble:
+    """Order model: rank average of config.ENSEMBLE_MEMBERS."""
+    return Ensemble(_members(target), name=" + ".join(config.ENSEMBLE_MEMBERS))
 
 
 class MeanScore(Ensemble):
@@ -137,13 +140,7 @@ class MeanScore(Ensemble):
         return np.mean([m.predict(rows, features) for m in self.members], axis=0)
 
 
-def final_sim_model(params_path=None, target: str = FINISHER_TARGET) -> MeanScore:
-    """Pace model for the simulation (v3, chosen on 2023-24): finishers-only target, so DNF risk
-    enters only through the simulation's DNF draws."""
-    import json
-
-    from f1pred.config import PROJECT_ROOT
-    path = params_path or PROJECT_ROOT / "reports" / "stage05_lgbm_params.json"
-    params = json.loads(path.read_text())["params"]
-    return MeanScore([RidgeModel(target=target), LGBMRegressorModel(residual=True, target=target, **params)],
-                     name="ridge + tuned lightgbm (mean score)")
+def final_sim_model(target: str | None = None) -> "MeanScore":
+    """Pace model for the simulation (v3, chosen on 2023-24): mean of the members' raw scores, trained on
+    config.SIM_TARGET (finishers only), so DNF risk enters only through the simulation's DNF draws."""
+    return MeanScore(_members(target or config.SIM_TARGET), name=" + ".join(config.ENSEMBLE_MEMBERS) + " (mean score)")

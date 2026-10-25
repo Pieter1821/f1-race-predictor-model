@@ -9,11 +9,12 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
+from f1pred import config
+
 # Columns that are only known after the race. Features must never read these for the same race.
 OUTCOME_COLUMNS = ["position", "on_track_position", "position_pct", "status", "status_bucket",
                    "finished", "laps", "points"]
 
-QUALI_GAP_CAP = 5.0  # %: anything slower is a failed/aborted session, not pace; fixed, not learned from data
 
 
 # ---------------------------------------------------------------- leak-free building blocks
@@ -109,7 +110,7 @@ def _quali_features(df: pd.DataFrame) -> pd.DataFrame:
     gaps = [(df[q] / df.groupby(["season", "round"])[q].transform("min") - 1) * 100 for q in ("q1", "q2", "q3")]
     best_gap = pd.concat(gaps, axis=1).min(axis=1)
     df["no_quali_time"] = best_gap.isna().astype(int)
-    df["quali_best_gap_pct"] = best_gap.clip(upper=QUALI_GAP_CAP).fillna(QUALI_GAP_CAP)
+    df["quali_best_gap_pct"] = best_gap.clip(upper=config.QUALI_GAP_CAP).fillna(config.QUALI_GAP_CAP)
     df["quali_position"] = df["quali_position"].fillna(df["field_size"])
     known = ~df["sprint_sets_grid"].astype(bool) & (df["no_quali_time"] == 0)
     df["grid_penalty"] = (df["grid"] - df["quali_position"]).where(known, 0)
@@ -149,24 +150,29 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
     df["dnf"] = np.where(df["finished"].isna(), np.nan,
                          (~df["finished"].astype(bool) & (df["status_bucket"] != "dsq")).astype(float))
 
-    team_all = prior_mean(df, "team", "on_track_pct", prior_weight=3)
+    team_all = prior_mean(df, "team", "on_track_pct", prior_weight=config.SHRINK_TEAM_ALL)
     df["_team_season"] = df["team"] + "_" + df["season"].astype(str)
-    df["team_form"] = prior_mean(df, "_team_season", "on_track_pct", prior_weight=4, prior_value=team_all)
-    df["driver_level"] = prior_mean(df, "driver_id", "on_track_pct", prior_weight=5, prior_value=df["team_form"])
+    df["team_form"] = prior_mean(df, "_team_season", "on_track_pct", prior_weight=config.SHRINK_TEAM_SEASON,
+                                 prior_value=team_all)
+    df["driver_level"] = prior_mean(df, "driver_id", "on_track_pct", prior_weight=config.SHRINK_DRIVER,
+                                    prior_value=df["team_form"])
     # Driver vs teammate (same car): the driver's edge, separated from how good the car is
     mate_sum = df.groupby(["season", "round", "team"])["on_track_pct"].transform("sum")
     mate_n = df.groupby(["season", "round", "team"])["on_track_pct"].transform("count")
     df["_vs_mate"] = (df["on_track_pct"] - (mate_sum - df["on_track_pct"]) / (mate_n - 1)).where(mate_n == 2)
-    df["driver_vs_teammate"] = prior_mean(df, "driver_id", "_vs_mate", prior_weight=5, prior_value=0.0)
-    df["driver_recent_form"] = recent_mean(df, "driver_id", "on_track_pct", window=5).fillna(df["driver_level"])
+    df["driver_vs_teammate"] = prior_mean(df, "driver_id", "_vs_mate", prior_weight=config.SHRINK_TEAMMATE, prior_value=0.0)
+    df["driver_recent_form"] = recent_mean(df, "driver_id", "on_track_pct", window=config.FORM_WINDOW).fillna(df["driver_level"])
     df["_driver_circuit"] = df["driver_id"] + "@" + df["circuit_id"]
-    df["track_level"] = prior_mean(df, "_driver_circuit", "on_track_pct", prior_weight=2, prior_value=df["driver_level"])
+    df["track_level"] = prior_mean(df, "_driver_circuit", "on_track_pct", prior_weight=config.SHRINK_TRACK,
+                                   prior_value=df["driver_level"])
 
     # DNF base rates differ a lot by season (2026 ~19% vs ~11% in 2024-25), so shrink a team toward
     # this season's league rate so far, which is itself shrunk toward the all-time league rate
     df["_season"] = df["season"].astype(str)
-    season_dnf = prior_mean(df, "_season", "dnf", prior_weight=44, prior_value=league_prior(df, "dnf"))
-    df["team_dnf_rate"] = prior_mean(df, "_team_season", "dnf", prior_weight=10, prior_value=season_dnf)
+    season_dnf = prior_mean(df, "_season", "dnf", prior_weight=config.SHRINK_DNF_SEASON,
+                            prior_value=league_prior(df, "dnf"))
+    df["team_dnf_rate"] = prior_mean(df, "_team_season", "dnf", prior_weight=config.SHRINK_DNF_TEAM,
+                                     prior_value=season_dnf)
 
     df["driver_standing"] = _standings(df, "driver_id")
     df["constructor_standing"] = _standings(df, "team")

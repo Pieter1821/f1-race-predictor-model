@@ -11,10 +11,9 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
+from f1pred import config
+
 POINTS_PLACES = 10
-# Chosen on 2023-24 DNF outcomes (Brier flat from 40 to 160): team DNF history predicts future DNFs
-# only weakly, so a team needs ~40 races (80 car-starts) of history to count as much as the season rate
-DNF_PRIOR_WEIGHT = 80
 
 
 @dataclass(frozen=True)
@@ -22,6 +21,7 @@ class SimSettings:
     grid_blend: float = 0.0   # lambda: 0 = pure model score, 1 = pure grid position
     sigma: float = 0.15       # pace noise, in "share of the field" units
     spacing: str = "linear"   # "log": front gaps bigger; "score": the model's own predicted gaps
+    pole_bonus: float = 0.0   # pace advantage for the polesitter (start / track position); 0 = off
     n_sims: int = 10_000
     seed: int = 0
 
@@ -62,7 +62,7 @@ def simulate_positions(pace: np.ndarray, p_dnf: np.ndarray, sigma: float, n_sims
     return positions
 
 
-def add_dnf_probability(table: pd.DataFrame, prior_weight: float = DNF_PRIOR_WEIGHT) -> pd.DataFrame:
+def add_dnf_probability(table: pd.DataFrame, prior_weight: float | None = None) -> pd.DataFrame:
     """P(DNF) per car for the simulation: team rate this season, shrunk hard toward this season's
     league rate so far (itself shrunk toward the all-time rate). Earlier races only."""
     from f1pred.features import league_prior, prior_mean
@@ -72,7 +72,9 @@ def add_dnf_probability(table: pd.DataFrame, prior_weight: float = DNF_PRIOR_WEI
     t["_dnf"] = dnf.where(t["position"].notna())
     t["_season"] = t["season"].astype(str)
     t["_team_season"] = t["team"] + "_" + t["_season"]
-    season_rate = prior_mean(t, "_season", "_dnf", prior_weight=44, prior_value=league_prior(t, "_dnf"))
+    prior_weight = config.DNF_PRIOR_WEIGHT if prior_weight is None else prior_weight
+    season_rate = prior_mean(t, "_season", "_dnf", prior_weight=config.SHRINK_DNF_SEASON,
+                             prior_value=league_prior(t, "_dnf"))
     return table.assign(sim_dnf_prob=prior_mean(t, "_team_season", "_dnf", prior_weight=prior_weight,
                                                  prior_value=season_rate))
 
@@ -83,6 +85,7 @@ def race_probabilities(drivers: pd.DataFrame, settings: SimSettings, score_col: 
     rng = np.random.default_rng(settings.seed)
     pace = pace_score(drivers[score_col].to_numpy(float), drivers["grid"].to_numpy(float), settings.grid_blend,
                       settings.spacing)
+    pace = pace - settings.pole_bonus * (drivers["grid"].to_numpy() == 1)
     pos = simulate_positions(pace, drivers[dnf_col].to_numpy(float), settings.sigma, settings.n_sims, rng)
     return drivers.assign(
         p_win=(pos == 1).mean(axis=0),
@@ -145,3 +148,8 @@ def temper_win(sim: pd.DataFrame, a: float) -> pd.DataFrame:
     q = q / q.groupby(key).transform("sum")
     out = sim.assign(p_win_raw=sim["p_win"], p_win=np.minimum(q, sim["p_podium"]))
     return out.assign(p_win=out["p_win"] / out.groupby(key)["p_win"].transform("sum"))
+
+
+def settings_from_config(n_sims: int | None = None) -> SimSettings:
+    return SimSettings(grid_blend=config.SIM_GRID_BLEND, sigma=config.SIM_SIGMA, spacing=config.SIM_SPACING,
+                       pole_bonus=config.SIM_POLE_BONUS, n_sims=n_sims or config.N_SIMS)
