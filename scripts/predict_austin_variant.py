@@ -6,10 +6,9 @@ See src/f1pred/variant.py for why, and why it can't be validated cleanly.
 import json
 from datetime import datetime, timezone
 
-import numpy as np
 import pandas as pd
 
-from f1pred.backtest import race_key, walk_forward
+from f1pred.backtest import walk_forward
 from f1pred.config import PREDICTIONS_DIR, PROJECT_ROOT
 from f1pred.data import load_results, race_start, read_snapshot
 from f1pred.features import append_target_race, build_features

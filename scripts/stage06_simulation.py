@@ -11,10 +11,9 @@ seeing the v1 test, its 2025-26 numbers are a contaminated second look, not a cl
 import json
 import sys
 
-import numpy as np
 import pandas as pd
 
-from f1pred.backtest import DEV_SEASONS, TEST_SEASONS, race_key, walk_forward
+from f1pred.backtest import TEST_SEASONS, race_key, walk_forward
 from f1pred.config import PROCESSED_DIR, PROJECT_ROOT
 from f1pred.models import FINAL_FEATURES, FINISHER_TARGET, TARGET, add_finisher_target, final_model
 from f1pred.simulate import SimSettings, add_dnf_probability, grid_slot_baseline, probability_scores, simulate_many

@@ -1,0 +1,26 @@
+{
+  "v1": {
+    "used_for": "2026 R18 Austin (official prediction)",
+    "features": "16 features incl. driver_vs_teammate",
+    "walk_forward_2023_26": {
+      "mae": 3.086,
+      "spearman": 0.699,
+      "vs_grid": "-0.190 [-0.294, -0.085]"
+    }
+  },
+  "v2": {
+    "default_from": "2026 R19",
+    "change": "drop driver_vs_teammate",
+    "evidence": "nested backward elimination dropped it in every half-season from 2024; nested procedure -0.002 MAE [-0.024, +0.020] (tie); direct v2 vs v1 -0.019 [-0.043, +0.004] is optimistic (feature singled out on these seasons); simulation Brier total +0.0001, log loss +0.002 (within noise)",
+    "decision": "adopt: ties go to the simpler model"
+  },
+  "rejected_25_oct": [
+    "weighted ensemble",
+    "LambdaRank in ensemble",
+    "sprint features",
+    "win calibration re-fitted in-season",
+    "recency weights x4",
+    "structural start bonus (pole: promising, re-test after 2026)",
+    "front-row bonus"
+  ]
+}

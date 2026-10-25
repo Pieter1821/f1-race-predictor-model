@@ -12,8 +12,9 @@ from f1pred.models import TARGET
 from f1pred.validate import score_many
 from f1pred.weights import recency_weights
 
-DEV_SEASONS = [2024]          # make choices here
-TEST_SEASONS = [2025, 2026]   # report here, once
+from f1pred.config import DEV_SEASONS, TEST_SEASONS  # single source of truth: config.py
+
+__all__ = ["DEV_SEASONS", "TEST_SEASONS", "race_key", "summarise", "walk_forward"]  # re-exported for older scripts
 
 
 def race_key(df: pd.DataFrame) -> pd.Series:

@@ -52,7 +52,7 @@ def test_target_race_rows_are_never_trained_on_or_scored():
 def test_imputer_is_fitted_on_training_rows_only():
     t = _table()
     t.loc[t.index[:5], "x"] = np.nan
-    train, test = t[t["season"] == 2024], t[t["season"] == 2025].assign(x=1000.0)  # extreme test values
+    train = t[t["season"] == 2024]
     model = RidgeModel().fit(train, ["grid_pct", "x"])
     assert model.pipe.named_steps["simpleimputer"].statistics_[1] == pytest.approx(train["x"].median())
 

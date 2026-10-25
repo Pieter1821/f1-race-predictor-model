@@ -22,6 +22,7 @@ class SimSettings:
     sigma: float = 0.15       # pace noise, in "share of the field" units
     spacing: str = "linear"   # "log": front gaps bigger; "score": the model's own predicted gaps
     pole_bonus: float = 0.0   # pace advantage for the polesitter (start / track position); 0 = off
+    bonus_grid_max: int = 1   # which grid slots get pole_bonus: 1 = pole only, 2 = whole front row
     n_sims: int = 10_000
     seed: int = 0
 
@@ -85,7 +86,7 @@ def race_probabilities(drivers: pd.DataFrame, settings: SimSettings, score_col: 
     rng = np.random.default_rng(settings.seed)
     pace = pace_score(drivers[score_col].to_numpy(float), drivers["grid"].to_numpy(float), settings.grid_blend,
                       settings.spacing)
-    pace = pace - settings.pole_bonus * (drivers["grid"].to_numpy() == 1)
+    pace = pace - settings.pole_bonus * (drivers["grid"].to_numpy() <= settings.bonus_grid_max)
     pos = simulate_positions(pace, drivers[dnf_col].to_numpy(float), settings.sigma, settings.n_sims, rng)
     return drivers.assign(
         p_win=(pos == 1).mean(axis=0),
