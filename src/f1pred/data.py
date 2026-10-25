@@ -377,11 +377,10 @@ SPRINT_COLUMNS = {"driverId": "driver_id", "grid": "sprint_grid", "position": "s
 
 def fetch_season_sprints(season: int) -> pd.DataFrame:
     """Sprint results for one season (run on Saturday, so known before the Grand Prix)."""
-    try:
-        pages = _all_pages(_ergast().get_sprint_results(season=season))
-    except Exception:  # seasons without sprints return no content
+    first = _ergast().get_sprint_results(season=season)
+    if first.description.empty:  # a season without sprints
         return pd.DataFrame(columns=["season", "round", *SPRINT_COLUMNS.values()])
-    df = _race_tables(pages, SPRINT_COLUMNS)
+    df = _race_tables(_all_pages(first), SPRINT_COLUMNS)
     return df[["season", "round", *SPRINT_COLUMNS.values()]]
 
 

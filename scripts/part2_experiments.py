@@ -17,7 +17,7 @@ from f1pred.data import load_results, race_start, read_snapshot
 from f1pred.evaluate import SEASONS, compare, line, order_scores
 from f1pred.features import SPRINT_FEATURES, add_sprint_features, build_features
 from f1pred.models import (Ensemble, LGBMRankerModel, LGBMRegressorModel, RidgeModel, add_finisher_target,
-                           final_model, final_sim_model)
+                           final_sim_model)
 from f1pred.simulate import add_dnf_probability, settings_from_config, simulate_many, temper_win
 from f1pred.validate import score_many
 from f1pred.weights import CANDIDATES

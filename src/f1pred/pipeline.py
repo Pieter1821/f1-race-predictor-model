@@ -113,7 +113,18 @@ def prediction_table(sim: pd.DataFrame, race_name: str, as_of: pd.Timestamp, inp
         as_of_utc=as_of.strftime("%Y-%m-%dT%H:%M:%SZ"),
         inputs_source=inputs_source,
         data_source=data_source,
-        model="order: ridge + tuned lightgbm (rank ensemble); sim: v" + str(sim.attrs["sim_version"]),
+        model=f"{config.MODEL_VERSION}; order: ridge + tuned lightgbm (rank ensemble); sim: v{sim.attrs['sim_version']}",
         train_races=sim.attrs["train_races"],
         git_commit=git_commit(),
     )
+
+
+def history_table(snapshot=None, season: int | None = None, rnd: int | None = None):
+    """(data, as_of, history, table) for backtests: results before `season`/`rnd` (default: the target
+    race), with every feature, the finishers-only target and the simulation's DNF probability."""
+    from f1pred.data import load_results, race_start, read_snapshot
+    data = read_snapshot(snapshot or config.SNAPSHOT)
+    as_of = race_start(data.schedule, season or config.TARGET_SEASON, rnd or config.TARGET_ROUND)
+    history = load_results(as_of=as_of, data=data)
+    table = add_dnf_probability(add_finisher_target(build_features(history.assign(is_target=False))))
+    return data, as_of, history, table

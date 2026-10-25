@@ -15,14 +15,14 @@ Nothing is written: config.py is changed in memory for this run only.
 import argparse
 import ast
 
-import numpy as np
 import pandas as pd
 
 from f1pred import config
-from f1pred.backtest import race_key, walk_forward
-from f1pred.data import load_results, race_start, read_snapshot
+from f1pred.backtest import walk_forward
+from f1pred.experiments import bootstrap_ci
 from f1pred.features import build_features
 from f1pred.models import add_finisher_target, final_model, final_sim_model
+from f1pred.pipeline import history_table
 from f1pred.simulate import add_dnf_probability, settings_from_config, simulate_many, temper_win
 from f1pred.validate import score_many
 
@@ -46,8 +46,7 @@ else:
     new = raw if isinstance(old, str) and not isinstance(new, str) else new
 score_sim = args.sim or name in SIM_SETTINGS
 
-data = read_snapshot(config.SNAPSHOT)
-history = load_results(as_of=race_start(data.schedule, config.TARGET_SEASON, config.TARGET_ROUND), data=data)
+_, _, history, _ = history_table()  # features are rebuilt per run below: feature settings change them
 
 
 def evaluate() -> dict:
@@ -66,9 +65,7 @@ def evaluate() -> dict:
 
 
 def verdict(diff: pd.Series, lower_is_better: bool = True) -> str:
-    rng = np.random.default_rng(0)
-    boot = np.array([rng.choice(diff.values, len(diff)).mean() for _ in range(10000)])
-    lo, hi = np.percentile(boot, [2.5, 97.5])
+    lo, hi = bootstrap_ci(diff)
     better = (diff < 0).sum() if lower_is_better else (diff > 0).sum()
     worse = (diff > 0).sum() if lower_is_better else (diff < 0).sum()
     beats = hi < 0 if lower_is_better else lo > 0

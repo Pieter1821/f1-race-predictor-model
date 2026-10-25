@@ -1,5 +1,4 @@
 """Integration test: the full prediction pipeline on a past race, offline from the committed snapshot."""
-import pandas as pd
 import pytest
 
 from f1pred.config import SNAPSHOT

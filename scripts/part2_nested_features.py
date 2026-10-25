@@ -11,15 +11,10 @@ import json
 import pandas as pd
 
 from f1pred import config
-from f1pred.backtest import race_key
-from f1pred.data import load_results, race_start, read_snapshot
 from f1pred.evaluate import NOISE_FLOOR, compare, line, order_scores
-from f1pred.features import build_features
-from f1pred.models import add_finisher_target
+from f1pred.pipeline import history_table
 
-data = read_snapshot(config.SNAPSHOT)
-history = load_results(as_of=race_start(data.schedule, config.TARGET_SEASON, config.TARGET_ROUND), data=data)
-table = add_finisher_target(build_features(history.assign(is_target=False)))
+data, as_of, history, table = history_table()
 FULL = list(config.FEATURES)
 cache: dict[tuple, pd.DataFrame] = {}
 

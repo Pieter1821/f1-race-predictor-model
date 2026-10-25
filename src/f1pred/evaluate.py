@@ -5,7 +5,6 @@ it helps in at least 3 of 4 seasons, and no guardrail (Spearman, winner, podium)
 A simplification is accepted when it is not measurably worse (mean change within the noise floor
 and its CI does not show it clearly worse).
 """
-import numpy as np
 import pandas as pd
 
 from f1pred import experiments
