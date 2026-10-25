@@ -1,10 +1,10 @@
-fastf1>=3.6
+fastf1>=3.9
 pandas
 numpy
 scipy
 scikit-learn
 lightgbm
-xgboost
+xgboost-cpu
 optuna
 shap
 matplotlib
