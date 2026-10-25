@@ -14,6 +14,16 @@ from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 
 TARGET = "position_pct"  # official finishing position / starters: 0 = front, 1 = back
+# Order among cars that finished: 0 = first finisher, 1 = last. "Pace if he finishes", no reliability
+# baked in, for the simulation (which adds DNFs itself; using TARGET there would count DNF risk twice)
+FINISHER_TARGET = "finisher_pct"
+
+
+def add_finisher_target(table: pd.DataFrame) -> pd.DataFrame:
+    fin = table["finished"].fillna(False).astype(bool) & table["position"].notna()
+    rank = table[fin].groupby(["season", "round"])["position"].rank()
+    n = table[fin].groupby(["season", "round"])["position"].transform("count")
+    return table.assign(**{FINISHER_TARGET: (rank / n).reindex(table.index)})
 
 
 class GridBaseline:
@@ -27,12 +37,12 @@ class GridBaseline:
 
 
 class RidgeModel:
-    def __init__(self, alpha: float = 1.0, name: str = "ridge"):
-        self.alpha, self.name = alpha, name
+    def __init__(self, alpha: float = 1.0, name: str = "ridge", target: str = TARGET):
+        self.alpha, self.name, self.target = alpha, name, target
 
     def fit(self, train, features, weights=None):
         self.pipe = make_pipeline(SimpleImputer(strategy="median"), StandardScaler(), Ridge(alpha=self.alpha))
-        self.pipe.fit(train[features], train[TARGET], ridge__sample_weight=weights)
+        self.pipe.fit(train[features], train[self.target], ridge__sample_weight=weights)
         return self
 
     def predict(self, rows, features):
@@ -47,15 +57,16 @@ class LGBMRegressorModel:
     """With residual=True the trees predict only the correction to the grid (places gained/lost as a
     share of the field), so they don't have to rebuild the smooth grid->finish line out of steps."""
 
-    def __init__(self, name: str = "lightgbm", residual: bool = False, **params):
-        self.name, self.residual, self.params = name, residual, {**LGBM_DEFAULTS, **params}
+    def __init__(self, name: str = "lightgbm", residual: bool = False, target: str = TARGET, **params):
+        self.name, self.residual, self.target = name, residual, target
+        self.params = {**LGBM_DEFAULTS, **params}
 
     def _offset(self, rows):
         return rows["grid_pct"].to_numpy() if self.residual else 0.0
 
     def fit(self, train, features, weights=None):
         self.model = lgb.LGBMRegressor(random_state=0, **self.params)
-        self.model.fit(train[features], train[TARGET] - self._offset(train), sample_weight=weights)
+        self.model.fit(train[features], train[self.target] - self._offset(train), sample_weight=weights)
         return self
 
     def predict(self, rows, features):
@@ -108,10 +119,11 @@ FINAL_FEATURES = ["grid", "grid_pct", "quali_position", "grid_penalty", "quali_b
 FINAL_WEIGHTING = None
 
 
-def final_model(params_path=None) -> Ensemble:
+def final_model(params_path=None, target: str = TARGET) -> Ensemble:
     import json
 
     from f1pred.config import PROJECT_ROOT
     path = params_path or PROJECT_ROOT / "reports" / "stage05_lgbm_params.json"
     params = json.loads(path.read_text())["params"]
-    return Ensemble([RidgeModel(), LGBMRegressorModel(residual=True, **params)], name="ridge + tuned lightgbm")
+    return Ensemble([RidgeModel(target=target), LGBMRegressorModel(residual=True, target=target, **params)],
+                    name="ridge + tuned lightgbm")

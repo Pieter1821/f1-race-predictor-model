@@ -21,13 +21,16 @@ def race_key(df: pd.DataFrame) -> pd.Series:
 
 
 def walk_forward(table: pd.DataFrame, make_model: Callable, features: list[str], test_seasons: list[int],
-                 weighting: dict | None = None, min_train_races: int = 10) -> pd.DataFrame:
-    """Predictions for every race in test_seasons, each from a model trained on strictly earlier races."""
-    history = table[~table["is_target"] & table[TARGET].notna()]
+                 weighting: dict | None = None, min_train_races: int = 10, target: str = TARGET) -> pd.DataFrame:
+    """Predictions for every race in test_seasons, each from a model trained on strictly earlier races.
+
+    Training uses rows where `target` is known; every starter of the test race is predicted.
+    """
+    history = table[~table["is_target"] & table["position"].notna()]
     keys = race_key(history)
     preds = []
     for key in sorted(keys[history["season"].isin(test_seasons)].unique()):
-        train = history[keys < key]
+        train = history[(keys < key) & history[target].notna()]
         test = history[keys == key]
         assert train[["season", "round"]].drop_duplicates().shape[0] >= min_train_races
         assert (race_key(train) < key).all()  # never train on the race being predicted, or later
