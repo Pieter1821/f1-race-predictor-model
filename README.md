@@ -19,8 +19,13 @@ About 0.1 places per driver better than the grid: likely real (better in 21 race
 equal in 8) but not proven (95% CI of the gain [-0.21, +0.004] places). The model is best where the grid is most
 misleading (penalised drivers: +4.6 places; back-of-grid starters: +0.5) and no better than the grid
 at the very front. Probabilities are well calibrated for podium and points; win probabilities needed
-a calibration step. Without practice-session data (F1's timing archive needs an F1 TV login since
-Oct 2026) a small edge over the grid is the realistic ceiling.
+a calibration step. Practice-session pace from OpenF1 was tested and added nothing (a tie, below), so a
+small edge over the grid is the realistic ceiling with the data available.
+
+**What it's good for.** Not for picking winners: "pole wins" does better. For odds-style questions
+("Colapinto's chance of points from P21") its probabilities are calibrated and honest. Against bookmakers
+it is untested and probably behind, since odds include practice pace and paddock news. One race settles
+nothing either way; the scorecard over many races does.
 
 ## Quick start
 
@@ -28,11 +33,15 @@ Python 3.12 (on this machine: WSL2 Ubuntu, venv outside the repo).
 
 ```bash
 python3 -m venv ~/venvs/f1 && ~/venvs/f1/bin/pip install -r requirements.lock && ~/venvs/f1/bin/pip install -e .
-python -m pytest -q                                              # 82 tests, offline
+python -m pytest -q                                              # 94 tests, offline (tests/ only)
 python scripts/predict_race.py --season 2026 --round 18          # live: refuses after lights out
 python scripts/predict_race.py --season 2025 --round 19 --backtest   # replay a past race
 python scripts/score_race.py --season 2026 --round 18            # after the race -> predictions/scorecard.csv
+python scripts/score_strategy.py --season 2026 --round 18        # the strategy estimate -> strategy_scorecard.csv
+python scripts/check_outliers.py --season 2026 --round 19        # data checks before a race
 ```
+
+Every pipeline script takes `--season/--round`; nothing defaults to a particular race.
 
 Before a live prediction, put the final grid (after penalties) and qualifying in
 `data/manual/{season}_R{round}_grid.csv` and `_qualifying.csv`. Jolpica publishes no pre-race
@@ -83,12 +92,16 @@ grid A-B-C-D, actual B-A-D-C):
 
 ## Model versions
 
-| Version | Used for | Change | Walk-forward 2023-26 MAE (87 races) |
+| Version | Used for | Change | Clean test, 2025-26 (41 races) |
 |---|---|---|---|
-| v1 | Austin 2026 (official) | — | 3.086 (grid 3.276; gain 0.19 places, CI [0.09, 0.29]) |
-| **v2** | default from 2026 R19 | drop `driver_vs_teammate` | 3.066; the honest (nested) gain over v1 is −0.002, a tie, so it's kept because simpler |
+| v1 | Austin 2026 (official) | — | MAE 3.21 vs grid 3.31: gain 0.10 places, CI [−0.004, +0.21] |
+| **v2** | default from 2026 R19 | drop `driver_vs_teammate` | a tie with v1 (nested gain −0.002, CI [−0.024, +0.020]); kept because simpler |
 
-**Over-/underfitting check** (`scripts/diagnose.py`): training and walk-forward errors are close (about 3.1
+Over all 87 races of 2023-26, v1 gains 0.19 places (CI [0.09, 0.29]), but that figure is **optimistic**:
+2023-24 are the seasons the features, tuning and simulation were chosen on, and keeping whichever option
+did best there bakes their luck in, so their gain (about 0.27 places) is roughly three times the clean one.
+
+**Over-/underfitting check** (`scripts/experiments/diagnose.py`): training and walk-forward errors are close (about 3.1
 places), more flexible models don't help, and 400 trees overfit. The model is short of *information*, not
 capacity.
 
@@ -109,7 +122,7 @@ loads are hidden.
 
 ## Tyre strategy (experimental)
 
-`scripts/part5_strategy.py` picks the fastest 1- or 2-stop plan:
+`scripts/experiments/part5_strategy.py` picks the fastest 1- or 2-stop plan:
 
 > race time = Σ laps (compound offset + wear × tyre age) + stops × pit loss
 
@@ -141,11 +154,14 @@ Austin 2026 estimate: `predictions/2026_R18_strategy_*.csv`, labelled experiment
 - **Nested walk-forward.** 2025-26 has already been looked at, so no untouched past test is left. For
   each test race, every choice (features, settings, tuning, calibration) is made using only earlier
   races, and the choosing is redone once per half-season.
-- **Accept a change only if:**
+- **A change is a candidate only if:**
   - the bootstrap CI of the gain excludes zero,
   - it helps in at least 3 of 4 seasons (2023-26),
   - and no guardrail gets clearly worse.
-- **Ties** go to the simpler model.
+- **A simplification** (dropping a feature) is a candidate only if its worst case, the CI's upper end, stays
+  within the noise floor (+0.022 places). A wide CI means "not measured precisely", not "not worse".
+- **Candidate is not adopted.** A candidate becomes the model only through a separate check that is
+  logged as `adopted` (one so far: v2). Ties go to the simpler model.
 - **Logging:** every experiment, failures included, is logged in `reports/experiments.csv`.
 - **The real test** is the scorecard: the rest of 2026 and beyond.
 
@@ -159,9 +175,9 @@ and fails if a single probability changes.
 Try one change on dev seasons only:
 
 ```bash
-python scripts/try_setting.py FEATURES=-track_level      # drop a feature
-python scripts/try_setting.py SHRINK_TRACK=10            # change a shrinkage weight
-python scripts/try_setting.py SIM_POLE_BONUS=0.02        # simulation settings also score the simulation
+python scripts/try_setting.py FEATURES=-track_level --season 2026 --round 19   # drop a feature
+python scripts/try_setting.py SHRINK_TRACK=10 --season 2026 --round 19         # change a shrinkage weight
+python scripts/try_setting.py SIM_POLE_BONUS=0.02 --season 2026 --round 19     # also scores the simulation
 ```
 
 It prints before vs after vs the grid, race by race, with a bootstrap 95% CI, and writes nothing.
@@ -169,7 +185,7 @@ It prints before vs after vs the grid, race by race, with a bootstrap 95% CI, an
 Rules for accepting a change:
 1. Judge on dev seasons only, never on test seasons or scorecard races.
 2. One change at a time.
-3. Keep it only if the CI of the per-race gain excludes zero.
+3. Keep it only if the CI of the per-race gain excludes zero (a simplification: its worst case within noise).
 4. On a tie, keep the simpler version.
 5. Re-tune at most once a season, and update `config.py` and the record in `reports/` together.
 
@@ -184,10 +200,26 @@ The idea to test later is a pole-conversion rate learned as the season goes on.
 ## Repository layout
 
 ```
-src/f1pred/      data, features, models, backtest, simulate, pipeline, validate, weather, weights
-scripts/         stage01..07 (the learning journey), predict_race, score_race, check_outliers, build_snapshot
-tests/           82 tests incl. leakage, as-of, row-order and negative tests
-data/snapshots/  immutable API snapshots      data/manual/  hand-entered pre-race grids
-predictions/     timestamped pre-race predictions + scorecard.csv
-reports/         locked model and simulation settings, figures, recorded test results
+src/f1pred/          data, features, models, backtest, simulate, pipeline, validate, practice, strategy, openf1
+scripts/             the pipeline: predict_race, score_race, score_strategy, export_web_data, check_outliers,
+                     build_snapshot, fetch_openf1, try_setting, sensitivity, smoke_test
+scripts/experiments/ one-off records of how the model was built and tested (each file's docstring says what it ran)
+tests/               94 tests incl. leakage, as-of, row-order, golden-master and negative tests
+web/                 Next.js app: race page, results checker, model scorecard (reads web/public/data/*.json)
+data/snapshots/      immutable API snapshots          data/manual/  hand-entered pre-race grids
+predictions/         timestamped pre-race predictions + scorecards
+reports/             locked model and simulation settings, figures, the experiment log
 ```
+
+## Web app
+
+`web/` shows the pipeline's own numbers; it never recomputes a metric. After any prediction or result:
+
+```bash
+python scripts/export_web_data.py --season 2026 --round 18   # writes web/public/data/*.json (+ the result, once published)
+cd web && npm install && npm run build && npm run start      # http://localhost:3000
+```
+
+Three screens: **Race** (the call, grid-to-flag chart, every driver's chances, pit strategy), **Results**
+(predicted against finished for the live race and all 87 backtests, model vs grid per race) and **Model**
+(the clean scorecard, calibration, where it wins, every experiment).
