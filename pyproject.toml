@@ -11,6 +11,8 @@ requires-python = ">=3.12"
 where = ["src"]
 
 [tool.pytest.ini_options]
+# Only tests/: scripts/smoke_test.py matches pytest's name pattern but needs the network
+testpaths = ["tests"]
 # Deprecations triggered by our own code fail the tests; ones inside third-party libraries don't
 filterwarnings = [
     "error::DeprecationWarning:f1pred",
