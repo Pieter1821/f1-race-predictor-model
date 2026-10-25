@@ -9,3 +9,10 @@ requires-python = ">=3.12"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.pytest.ini_options]
+# Deprecations triggered by our own code fail the tests; ones inside third-party libraries don't
+filterwarnings = [
+    "error::DeprecationWarning:f1pred",
+    "error::FutureWarning:f1pred",
+]

@@ -5,8 +5,9 @@ races at or after that moment don't exist yet as far as the model is concerned. 
 deliberately no default; every caller must say which moment it means.
 """
 import re
+import time as clock
 from dataclasses import dataclass
-from datetime import date, datetime, time
+from datetime import datetime, time, timezone
 from pathlib import Path
 
 import pandas as pd
@@ -99,10 +100,14 @@ def _race_tables(pages, columns: dict) -> pd.DataFrame:
             df.insert(2, "race_name", race["raceName"])
             df.insert(3, "circuit_id", race["circuitId"])
             df.insert(4, "date", race["raceDate"])
-            races.append(df)
+            # Lap times as seconds before concat: concatenating timedeltas hits a NumPy 2.5 deprecation in pandas
+            for col in df.select_dtypes("timedelta").columns:
+                df[col] = df[col].dt.total_seconds()
+            races.append(df.dropna(axis=1, how="all"))  # all-blank pieces would muddle concat's dtypes
+    ordered = ["season", "round", "race_name", "circuit_id", "date", *columns.values()]
     # A race split across two pages arrives in two parts. Only drop exact duplicate rows,
     # so a driver wrongly listed twice (e.g. under two teams) is still caught by the checks.
-    return pd.concat(races, ignore_index=True).drop_duplicates().reset_index(drop=True)
+    return pd.concat(races, ignore_index=True).reindex(columns=ordered).drop_duplicates().reset_index(drop=True)
 
 
 def fetch_season_results(season: int) -> pd.DataFrame:
@@ -113,14 +118,14 @@ def fetch_season_results(season: int) -> pd.DataFrame:
 def fetch_season_qualifying(season: int) -> pd.DataFrame:
     columns = {"driverId": "driver_id", "constructorId": "constructor_id", "position": "quali_position",
                "Q1": "q1", "Q2": "q2", "Q3": "q3"}
-    df = _race_tables(_all_pages(_ergast().get_qualifying_results(season=season)), columns)
-    for q in ("q1", "q2", "q3"):
-        df[q] = pd.to_timedelta(df[q]).dt.total_seconds()
+    df = _race_tables(_all_pages(_ergast().get_qualifying_results(season=season)), columns)  # times in seconds
     return df[["season", "round", "driver_id", "constructor_id", "quali_position", "q1", "q2", "q3"]]
 
 
 def _combine(day, clock: time | None) -> pd.Timestamp:
-    """Date + start time (UTC). A missing start time counts as midnight."""
+    """Date + start time (UTC). A missing start time counts as midnight; a missing date stays missing."""
+    if pd.isna(day):
+        return pd.NaT
     if clock is None or pd.isna(clock):
         clock = time(0, 0)
     return pd.Timestamp(datetime.combine(pd.Timestamp(day).date(), clock.replace(tzinfo=None)), tz="UTC")
@@ -137,6 +142,7 @@ def fetch_schedule(season: int) -> pd.DataFrame:
         "lon": s["long"],
         "start_utc": [_combine(d, t) for d, t in zip(s["raceDate"], s["raceTime"])],
         "has_sprint": s["sprintDate"].notna(),
+        "qualifying_start_utc": [_combine(d, t) for d, t in zip(s["qualifyingDate"], s["qualifyingTime"])],
     })
 
 
@@ -157,6 +163,7 @@ def fetch_driver_debuts(driver_ids) -> pd.DataFrame:
     """Dates of each driver's first three career races (from all of F1 history, not just our seasons)."""
     rows = []
     for driver in sorted(set(driver_ids)):
+        clock.sleep(0.5)  # ~70 lookups in a row trips Jolpica's rate limit (HTTP 429) otherwise
         first = _ergast().get_race_results(driver=driver, limit=3).description
         dates = sorted(first["raceDate"])
         rows.append({"driver_id": driver, **{f"race_{i + 1}_date": d for i, d in enumerate(dates)}})
@@ -164,6 +171,10 @@ def fetch_driver_debuts(driver_ids) -> pd.DataFrame:
 
 
 # ---------------------------------------------------------------- the raw bundle and snapshots
+
+def snapshot_stamp() -> str:
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H%MZ")
+
 
 @dataclass
 class RawData:
@@ -190,9 +201,10 @@ def fetch_raw(seasons=SEASONS) -> RawData:
 
 
 def save_snapshot(data: RawData, seasons=SEASONS) -> Path:
-    """Dated copy of exactly what the API returned, so every result can be reproduced later."""
-    path = SNAPSHOT_DIR / f"jolpica_{min(seasons)}-{max(seasons)}_{date.today().isoformat()}"
-    path.mkdir(parents=True, exist_ok=True)
+    """Copy of exactly what the API returned, named by fetch time (UTC). Snapshots are never edited:
+    new or extra data always goes into a new folder."""
+    path = SNAPSHOT_DIR / f"jolpica_{min(seasons)}-{max(seasons)}_{snapshot_stamp()}"
+    path.mkdir(parents=True, exist_ok=False)  # refuses to overwrite an existing snapshot
     for name in RawData._FILES:
         getattr(data, name).to_csv(path / f"{name}.csv", index=False)
     return path
@@ -202,7 +214,8 @@ def read_snapshot(path: Path) -> RawData:
     path = Path(path)
     tables = {name: pd.read_csv(path / f"{name}.csv") for name in RawData._FILES}
     tables["results"]["date"] = pd.to_datetime(tables["results"]["date"])
-    tables["schedule"]["start_utc"] = pd.to_datetime(tables["schedule"]["start_utc"], utc=True)
+    for col in ("start_utc", "qualifying_start_utc"):
+        tables["schedule"][col] = pd.to_datetime(tables["schedule"][col], utc=True)
     for col in ("race_1_date", "race_2_date", "race_3_date"):
         tables["driver_debuts"][col] = pd.to_datetime(tables["driver_debuts"][col])
     return RawData(**tables, source=f"snapshot {path.name}")
@@ -313,9 +326,11 @@ def _on_track_positions(df: pd.DataFrame, dsq_last_laps: pd.DataFrame) -> pd.Ser
 
 def add_context(df: pd.DataFrame, data: RawData) -> pd.DataFrame:
     """Qualifying position, grid penalty, and flags for unusual-but-real situations."""
-    df = df.merge(data.qualifying[["season", "round", "driver_id", "quali_position", "q1", "q2", "q3"]],
-                  on=["season", "round", "driver_id"], how="left")
-    df = df.merge(data.schedule[["season", "round", "has_sprint"]], on=["season", "round"], how="left")
+    quali = data.qualifying[["season", "round", "driver_id", "quali_position", "q1", "q2", "q3"]]
+    # one_to_one: a duplicated qualifying row would otherwise silently duplicate a driver's result
+    df = df.merge(quali, on=["season", "round", "driver_id"], how="left", validate="one_to_one")
+    df = df.merge(data.schedule[["season", "round", "has_sprint"]], on=["season", "round"],
+                  how="left", validate="many_to_one")
 
     # 2022 only: the sprint result, not qualifying, set the race grid
     df["sprint_sets_grid"] = (df["season"] == 2022) & df["has_sprint"]
