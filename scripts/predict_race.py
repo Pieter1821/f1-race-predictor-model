@@ -11,6 +11,7 @@ from pathlib import Path
 
 import pandas as pd
 
+from f1pred import config
 from f1pred.config import FIRST_SEASON, PREDICTIONS_DIR, SNAPSHOT
 from f1pred.data import fetch_raw, load_results, race_start, read_snapshot, save_snapshot
 from f1pred.pipeline import prediction_table, predict, race_inputs
@@ -21,7 +22,10 @@ parser.add_argument("--round", type=int, required=True)
 parser.add_argument("--backtest", action="store_true", help="allow a race that has already started")
 parser.add_argument("--snapshot", type=Path, help="use this snapshot instead of fetching fresh data")
 parser.add_argument("--n-sims", type=int, default=None, help="default: config.N_SIMS")
+parser.add_argument("--model", choices=sorted(config.MODEL_FEATURES), default=config.MODEL_VERSION,
+                    help="model version; an input-only refresh of an already-predicted race must reuse its version")
 args = parser.parse_args()
+config.MODEL_VERSION, config.FEATURES = args.model, config.MODEL_FEATURES[args.model]
 
 seasons = range(FIRST_SEASON, args.season + 1)
 if args.snapshot or args.backtest:

@@ -45,9 +45,13 @@ SHRINK_DNF_SEASON = 44     # season DNF rate -> all-time rate (~2 races x 22 car
 FORM_WINDOW = 5            # races in driver_recent_form | low: noisy | high: stale, same as driver_level
 QUALI_GAP_CAP = 5.0        # % cap on the qualifying gap | low: hides real gaps | high: failed sessions look like pace
 
+# v2 (default from 2026 R19): v1 minus driver_vs_teammate, which nested selection dropped in every half-season.
+# Ties v1 (nested -0.002 MAE, within noise); kept because ties go to the simpler model. reports/model_versions.json
+MODEL_VERSION = "v2"
 FEATURES = ["grid", "grid_pct", "quali_position", "grid_penalty", "quali_best_gap_pct", "no_quali_time",
             "teammate_quali_delta", "sprint_sets_grid", "team_form", "driver_level", "driver_recent_form",
-            "driver_standing", "constructor_standing", "track_level", "team_dnf_rate", "driver_vs_teammate"]
+            "driver_standing", "constructor_standing", "track_level", "team_dnf_rate"]
+MODEL_FEATURES = {"v1": FEATURES + ["driver_vs_teammate"], "v2": FEATURES}  # predict_race.py --model
 
 # --- Order model
 RECENCY_WEIGHTING = None   # None or a weights.CANDIDATES entry | strong decay: forgets useful history
