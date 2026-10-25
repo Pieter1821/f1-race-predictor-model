@@ -28,7 +28,7 @@ Python 3.12 (on this machine: WSL2 Ubuntu, venv outside the repo).
 
 ```bash
 python3 -m venv ~/venvs/f1 && ~/venvs/f1/bin/pip install -r requirements.lock && ~/venvs/f1/bin/pip install -e .
-python -m pytest -q                                              # 78 tests, offline
+python -m pytest -q                                              # 82 tests, offline
 python scripts/predict_race.py --season 2026 --round 18          # live: refuses after lights out
 python scripts/predict_race.py --season 2025 --round 19 --backtest   # replay a past race
 python scripts/score_race.py --season 2026 --round 18            # after the race -> predictions/scorecard.csv
@@ -81,12 +81,69 @@ grid A-B-C-D, actual B-A-D-C):
 | Log loss | −ln P(actual winner) | 45% → 0.80; 5% → 3.0 | uniform 3.09, ours ≈ 1.2 |
 | Bootstrap CI | resample races 10,000×, middle 95% of the mean gain | −0.10 [−0.21, +0.004] | excludes 0 = convincing |
 
+## Rules (fixed 25 Oct 2026, before the Austin result was known)
+
+**Official predictions.**
+- The first prediction saved and pushed before lights out is the official one.
+- If the official starting grid changes before lights out (pit-lane start, late penalty), re-run
+  `predict_race.py` with corrected inputs. That input-only refresh becomes official.
+- A model change never replaces the official prediction for a race. A new model version becomes the
+  default from the next race. For Austin 2026, `2026_R18_20261025T083234Z.csv` stays official.
+- Variants are scored alongside it, but marked as not official.
+
+**Improving accuracy.**
+- **Primary metric:** walk-forward MAE of the predicted order.
+- **Guardrails** (must not get clearly worse): Spearman, winner and podium hit rate, Brier total, and
+  winner log loss.
+- **Nested walk-forward.** 2025-26 has already been looked at, so no untouched past test is left. For
+  each test race, every choice (features, settings, tuning, calibration) is made using only earlier
+  races, and the choosing is redone once per half-season.
+- **Accept a change only if:**
+  - the bootstrap CI of the gain excludes zero,
+  - it helps in at least 3 of 4 seasons (2023-26),
+  - and no guardrail gets clearly worse.
+- **Ties** go to the simpler model.
+- **Logging:** every experiment, failures included, is logged in `reports/experiments.csv`.
+- **The real test** is the scorecard: the rest of 2026 and beyond.
+
+## Tuning guide
+
+Every setting lives in `src/f1pred/config.py`, each with a comment saying what it does and what goes wrong
+if it's too low or too high. The values there *are* the locked model: a test checks they match the
+recorded decisions in `reports/`, and another rebuilds the official Austin prediction from its snapshot
+and fails if a single probability changes.
+
+Try one change on dev seasons only:
+
+```bash
+python scripts/try_setting.py FEATURES=-track_level      # drop a feature
+python scripts/try_setting.py SHRINK_TRACK=10            # change a shrinkage weight
+python scripts/try_setting.py SIM_POLE_BONUS=0.02        # simulation settings also score the simulation
+```
+
+It prints before vs after vs the grid, race by race, with a bootstrap 95% CI, and writes nothing.
+
+Rules for accepting a change:
+1. Judge on dev seasons only, never on test seasons or scorecard races.
+2. One change at a time.
+3. Keep it only if the CI of the per-race gain excludes zero.
+4. On a tie, keep the simpler version.
+5. Re-tune at most once a season, and update `config.py` and the record in `reports/` together.
+
+First experiments (25 Oct 2026):
+- **Dropping `track_level`:** within noise (+0.016 MAE, CI [−0.04, +0.09]), so it stays.
+- **A pole bonus:** within noise on dev, and dev polesitters were already *over*-rated (60% predicted
+  vs 54% actual) while 2025-26 ones were under-rated (~50% vs 67-71%). Pole conversion changes by
+  season, so a fixed bonus can't fix it.
+
+The idea to test later is a pole-conversion rate learned as the season goes on.
+
 ## Repository layout
 
 ```
 src/f1pred/      data, features, models, backtest, simulate, pipeline, validate, weather, weights
 scripts/         stage01..07 (the learning journey), predict_race, score_race, check_outliers, build_snapshot
-tests/           78 tests incl. leakage, as-of, row-order and negative tests
+tests/           82 tests incl. leakage, as-of, row-order and negative tests
 data/snapshots/  immutable API snapshots      data/manual/  hand-entered pre-race grids
 predictions/     timestamped pre-race predictions + scorecard.csv
 reports/         locked model and simulation settings, figures, recorded test results
