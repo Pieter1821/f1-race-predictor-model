@@ -102,8 +102,26 @@ capacity.
 - A nested **pole start bonus** was promising (win Brier −0.0003, log loss −0.010, both CIs just touching 0)
   but rejected for now. Re-test it after the 2026 season.
 
-The biggest untested lever is **practice data** (long-run pace, tyre wear). It needs an F1 TV Access login,
-and coverage of past seasons is unverified.
+**Practice data** now comes from [OpenF1](https://openf1.org): free laps, stints and pit stops from 2023 on,
+no login, in an immutable snapshot. Cleaned long-run pace and tyre-wear features did *not* improve the
+order model: +0.001 when trained on 2023+ data, a tie. They mostly repeat qualifying, and practice fuel
+loads are hidden.
+
+## Tyre strategy (experimental)
+
+`scripts/part5_strategy.py` picks the fastest 1- or 2-stop plan:
+
+> race time = Σ laps (compound offset + wear × tyre age) + stops × pit loss
+
+- Tyre wear comes from this weekend's practice long runs, fuel-corrected, and scaled by a practice→race
+  calibration of about 0.36: practice overstates race wear about 2.8×.
+- Offsets and the fuel effect come from earlier race laps, and pit loss from earlier races at the same circuit.
+
+**Walk-forward over 56 dry races:**
+- The stop count is right 66% of the time, vs 55% for "always one stop" (sign test p = 0.11: suggestive, not proven).
+- The starting compound is right only 46% of the time, so trust stop counts and pit windows, not compound order.
+
+Austin 2026 estimate: `predictions/2026_R18_strategy_*.csv`, labelled experimental.
 
 ## Rules (fixed 25 Oct 2026, before the Austin result was known)
 
