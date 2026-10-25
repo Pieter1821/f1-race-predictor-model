@@ -1,0 +1,14 @@
+{
+  "version": 2,
+  "chosen_on": [
+    2023,
+    2024
+  ],
+  "rule": "lowest brier_total",
+  "target": "position_pct",
+  "grid_blend": 0.0,
+  "sigma": 0.16,
+  "spacing": "log",
+  "dev_brier_total": 0.2362,
+  "test_status": "contaminated: designed after the v1 test, see stage06_test_v1.json"
+}
