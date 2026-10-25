@@ -1,0 +1,4 @@
+date_utc,change,seasons,gain_2024,gain_other,ci_low,ci_high,decision,notes,mae_mean,mae_sd,mae_range,mae_shuffled,mae_grid,mae_real
+2026-10-25T09:11:38Z,diagnostic: Optuna optimism (tuned vs default lightgbm),2023 2024 2025 2026,0.3105,0.1539,,,diagnostic,,,,,,,
+2026-10-25T09:12:16Z,diagnostic: noise floor (5 seeds),2023 2024 2025 2026,,,,,diagnostic,,3.0884,0.0088,0.0219,,,
+2026-10-25T09:12:27Z,diagnostic: leak check (shuffled labels),2023 2024 2025 2026,,,,,pass,,,,,5.8082,3.2757,3.0858
